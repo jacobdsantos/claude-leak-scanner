@@ -48,6 +48,12 @@ templates = Jinja2Templates(directory=str(templates_dir))
 
 # ── Dashboard ────────────────────────────────────────────────────────────────
 
+@app.head("/")
+async def health_check():
+    """HEAD endpoint for Render/Railway health checks."""
+    return HTMLResponse("")
+
+
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
     database = await db.get_db()
@@ -58,14 +64,17 @@ async def dashboard(request: Request):
     finally:
         await database.close()
 
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request,
-        "stats": stats,
-        "findings": findings,
-        "scans": scans,
-        "platforms": config.ENABLED_PLATFORMS,
-        "scan_running": _scan_running,
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="dashboard.html",
+        context={
+            "stats": stats,
+            "findings": findings,
+            "scans": scans,
+            "platforms": config.ENABLED_PLATFORMS,
+            "scan_running": _scan_running,
+        },
+    )
 
 
 # ── Scan API ─────────────────────────────────────────────────────────────────
