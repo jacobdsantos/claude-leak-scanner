@@ -21,6 +21,37 @@ from platforms.base import PlatformScanner
 
 # ── Scoring engine (ported from claude_lure_scanner.py) ──────────────────────
 
+CLAUDE_RELEVANCE_PATTERNS = [
+    r"claude",
+    r"anthropic",
+    r"source\s*map",
+    r"leaked?\s*(source|code)",
+    r"crack(ed|ing)?.*code",
+    r"claudecode",
+    r"claw.?code",  # common misspelling/obfuscation
+]
+
+
+def is_claude_relevant(candidate: RepoCandidate, readme: str) -> bool:
+    """Check if repo is actually related to Claude Code leaks."""
+    # Always relevant if it's a known malicious repo
+    if candidate.repo_name in config.KNOWN_MALICIOUS_REPOS:
+        return True
+
+    # Check repo name, description, and README for Claude relevance
+    text = " ".join([
+        candidate.repo_name.lower(),
+        candidate.description.lower(),
+        readme.lower()[:2000],
+    ])
+
+    for pattern in CLAUDE_RELEVANCE_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            return True
+
+    return False
+
+
 def score_repo(
     candidate: RepoCandidate,
     readme: str,
@@ -33,13 +64,19 @@ def score_repo(
     score = 0
     reasons: list[str] = []
 
-    # ── Known malicious match (GitHub only, but check all) ──
+    # ── Known malicious match ──
     if candidate.repo_name in config.KNOWN_MALICIOUS_REPOS:
         score += 50
         reasons.append("KNOWN MALICIOUS REPO (Zscaler IOC)")
+
+    # Known account boost — only if repo is Claude-relevant
     if candidate.owner_login in config.KNOWN_MALICIOUS_ACCOUNTS:
-        score += 40
-        reasons.append(f"KNOWN MALICIOUS ACCOUNT: {candidate.owner_login}")
+        if is_claude_relevant(candidate, readme):
+            score += 40
+            reasons.append(f"KNOWN MALICIOUS ACCOUNT: {candidate.owner_login}")
+        else:
+            score += 10
+            reasons.append(f"Known threat actor account (unrelated repo): {candidate.owner_login}")
 
     # ── Account age ──
     if owner_age_days is not None:
@@ -178,12 +215,10 @@ async def scan_platform(
 
         # Only deep inspect repos with releases OR known IOCs
         has_releases = len(releases) > 0
-        is_known = (
-            candidate.repo_name in config.KNOWN_MALICIOUS_REPOS
-            or candidate.owner_login in config.KNOWN_MALICIOUS_ACCOUNTS
-        )
+        is_known_repo = candidate.repo_name in config.KNOWN_MALICIOUS_REPOS
+        is_known_account = candidate.owner_login in config.KNOWN_MALICIOUS_ACCOUNTS
 
-        if not has_releases and not is_known:
+        if not has_releases and not is_known_repo and not is_known_account:
             continue
 
         # Deep inspect
@@ -191,6 +226,11 @@ async def scan_platform(
             readme = await scanner.get_readme(candidate.repo_id)
         except Exception:
             readme = ""
+
+        # Relevance gate: for known accounts, skip repos not about Claude
+        if is_known_account and not is_known_repo:
+            if not is_claude_relevant(candidate, readme):
+                continue
 
         try:
             files = await scanner.get_file_tree(candidate.repo_id)
