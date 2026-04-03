@@ -33,10 +33,6 @@
         <div class="label">Total Findings</div>
         <div class="value" id="statTotal">{{ stats.total }}</div>
     </div>
-    <div class="stat-card new">
-        <div class="label">New</div>
-        <div class="value" id="statNew">{{ stats.new }}</div>
-    </div>
     <div class="stat-card critical">
         <div class="label">Critical</div>
         <div class="value" id="statCritical">{{ stats.critical }}</div>
@@ -44,6 +40,10 @@
     <div class="stat-card high">
         <div class="label">High</div>
         <div class="value" id="statHigh">{{ stats.high }}</div>
+    </div>
+    <div class="stat-card medium">
+        <div class="label">Medium</div>
+        <div class="value" id="statMedium">{{ stats.medium }}</div>
     </div>
     <div class="stat-card platforms">
         <div class="label">Platforms</div>
@@ -78,9 +78,6 @@
         <option value="LOW">Low</option>
     </select>
     <label>
-        <input type="checkbox" id="filterNew" onchange="applyFilters()"> New only
-    </label>
-    <label>
         <input type="checkbox" id="filterDismissed" onchange="applyFilters()"> Show dismissed
     </label>
 </div>
@@ -105,11 +102,10 @@
             <tr class="finding-row"
                 data-platform="{{ f.platform }}"
                 data-severity="{{ f.severity }}"
-                data-new="{{ f.is_new | lower }}"
+                data-dismissed="{{ 'true' if f.dismissed else 'false' }}"
                 data-score="{{ f.score }}"
                 onclick="toggleDetails('details-{{ loop.index }}')">
                 <td>
-                    {% if f.is_new %}<span class="badge badge-new">NEW</span>{% endif %}
                 </td>
                 <td><span class="badge-platform {{ f.platform }}">{{ f.platform }}</span></td>
                 <td>
@@ -370,7 +366,7 @@ function dismissFinding(id, btn) {
 function applyFilters() {
     const platform = document.getElementById('filterPlatform').value;
     const severity = document.getElementById('filterSeverity').value;
-    const newOnly = document.getElementById('filterNew').checked;
+    const newOnly = false;
     const showDismissed = document.getElementById('filterDismissed').checked;
 
     const rows = document.querySelectorAll('.finding-row');

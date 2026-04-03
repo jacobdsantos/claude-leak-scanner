@@ -204,36 +204,72 @@ async def scan_platform(
         found=len(filtered), message=f"Found {len(filtered)} candidates, inspecting..."
     )
 
-    # Deep inspection: inspect ALL candidates (releases are a scoring boost, not a gate)
+    # ── Two-pass inspection: quick score first, deep inspect high-value only ──
     results: list[ScoredFinding] = []
 
-    for candidate in filtered:
-        # Fetch README first (needed for scoring)
-        try:
-            readme = await scanner.get_readme(candidate.repo_id)
-        except Exception:
-            readme = ""
+    for i, candidate in enumerate(filtered):
+        # Progress heartbeat every 10 repos
+        if i > 0 and i % 10 == 0:
+            yield ScanProgress(
+                platform=platform, status="inspecting",
+                found=len(results),
+                message=f"Inspecting {i}/{len(filtered)}... ({len(results)} findings so far)"
+            )
 
-        # Check releases (boosts score but not required)
-        try:
-            releases = await scanner.get_releases(candidate.repo_id)
-        except Exception:
-            releases = []
+        # ── Pass 1: Quick score from metadata only (no API calls) ──
+        quick_score = 0
+        name_lower = candidate.repo_name.lower()
+        desc_lower = candidate.description.lower()
 
-        try:
-            files = await scanner.get_file_tree(candidate.repo_id)
-        except Exception:
-            files = []
+        if candidate.repo_name in config.KNOWN_MALICIOUS_REPOS:
+            quick_score += 50
+        if candidate.owner_login in config.KNOWN_MALICIOUS_ACCOUNTS:
+            quick_score += 20
+        if "leaked" in name_lower and "claude" in name_lower:
+            quick_score += 20
+        if "crack" in name_lower and "claude" in name_lower:
+            quick_score += 20
+        if candidate.stars == 0:
+            quick_score += 5
+        if any(kw in desc_lower for kw in ["leaked", "source code", "source map", "anthropic"]):
+            quick_score += 10
+        if any(kw in name_lower for kw in ["leaked", "leak", "source", "claude", "anthropic", "claw"]):
+            quick_score += 5
 
+        # ── Pass 2: Deep inspect only high-value candidates ──
+        readme = ""
+        releases: list[ReleaseAsset] = []
+        files: list[str] = []
         owner_age_days = None
         owner_pub_repos = None
-        if candidate.owner_login:
+
+        # Deep inspect if quick score suggests anything interesting
+        if quick_score >= 5:
             try:
-                owner_info = await scanner.get_owner_info(candidate.owner_login)
-                owner_age_days = owner_info.age_days
-                owner_pub_repos = owner_info.public_repos
+                readme = await scanner.get_readme(candidate.repo_id)
             except Exception:
                 pass
+
+            # Only check releases + files for higher-scoring repos (saves API calls)
+            if quick_score >= 15 or candidate.repo_name in config.KNOWN_MALICIOUS_REPOS:
+                try:
+                    releases = await scanner.get_releases(candidate.repo_id)
+                except Exception:
+                    pass
+
+                try:
+                    files = await scanner.get_file_tree(candidate.repo_id)
+                except Exception:
+                    pass
+
+            # Only check owner for new/suspicious repos
+            if quick_score >= 10 and candidate.owner_login:
+                try:
+                    owner_info = await scanner.get_owner_info(candidate.owner_login)
+                    owner_age_days = owner_info.age_days
+                    owner_pub_repos = owner_info.public_repos
+                except Exception:
+                    pass
 
         score, reasons = score_repo(
             candidate, readme, files, releases,
@@ -310,24 +346,35 @@ async def run_scan(
     new_found = 0
 
     try:
-        # Scan all platforms in parallel
-        async def scan_one(scanner: PlatformScanner):
-            async for progress in scan_platform(scanner, days_back, star_threshold):
-                if progress_callback:
-                    await progress_callback(progress)
-
-        await asyncio.gather(*(scan_one(s) for s in scanners), return_exceptions=True)
-
-        # Collect and persist results
+        # Scan platforms SEQUENTIALLY — save to DB after each one
         for scanner in scanners:
-            results = getattr(scanner, "_results", [])
-            for finding in results:
-                is_new = await db.upsert_finding(database, finding)
-                total_found += 1
-                if is_new:
-                    new_found += 1
+            try:
+                async for progress in scan_platform(scanner, days_back, star_threshold):
+                    if progress_callback:
+                        await progress_callback(progress)
 
-        await database.commit()
+                # Persist this platform's results immediately
+                results = getattr(scanner, "_results", [])
+                for finding in results:
+                    is_new = await db.upsert_finding(database, finding)
+                    total_found += 1
+                    if is_new:
+                        new_found += 1
+
+                await database.commit()
+
+            except Exception as e:
+                # Log error but continue to next platform
+                if progress_callback:
+                    await progress_callback(ScanProgress(
+                        platform=scanner.name, status="error",
+                        message=f"Platform failed: {e}",
+                    ))
+
+            finally:
+                # Close this scanner's HTTP client before moving on
+                if hasattr(scanner, "close"):
+                    await scanner.close()
 
         # Update scan record
         completed_at = datetime.now(timezone.utc)
@@ -345,9 +392,12 @@ async def run_scan(
         await db.update_scan(database, scan_id, status=f"failed: {e}")
         raise
     finally:
-        # Close scanner HTTP clients
+        # Close any scanners not already closed
         for scanner in scanners:
-            await scanner.close()
+            try:
+                await scanner.close()
+            except Exception:
+                pass
         await database.close()
 
     return total_found, new_found

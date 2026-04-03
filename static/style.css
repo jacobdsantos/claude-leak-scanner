@@ -246,9 +246,9 @@ body::before {
 
 .stat-card.total .value { color: var(--text-max); }
 
-.stat-card.new .value {
-    color: var(--accent);
-    text-shadow: 0 0 20px var(--accent-glow);
+.stat-card.medium .value {
+    color: var(--sig-medium);
+    text-shadow: 0 0 12px rgba(167, 139, 250, 0.25);
 }
 
 .stat-card.critical .value {
@@ -268,7 +268,7 @@ body::before {
 
 /* Accent line on critical/new cards */
 .stat-card.critical::after,
-.stat-card.new::after {
+.stat-card.medium::after {
     content: '';
     position: absolute;
     bottom: 0;
@@ -277,7 +277,7 @@ body::before {
     height: 1px;
 }
 .stat-card.critical::after { background: var(--sig-critical); opacity: 0.4; }
-.stat-card.new::after { background: var(--accent); opacity: 0.3; }
+.stat-card.medium::after { background: var(--sig-medium); opacity: 0.3; }
 
 /* ── Platform Bar ──────────────────────────────────────────────────────── */
 
