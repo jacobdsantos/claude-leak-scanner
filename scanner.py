@@ -204,28 +204,21 @@ async def scan_platform(
         found=len(filtered), message=f"Found {len(filtered)} candidates, inspecting..."
     )
 
-    # Deep inspection: check releases first, then full inspection on those with releases
+    # Deep inspection: inspect ALL candidates (releases are a scoring boost, not a gate)
     results: list[ScoredFinding] = []
 
     for candidate in filtered:
-        try:
-            releases = await scanner.get_releases(candidate.repo_id)
-        except Exception:
-            releases = []
-
-        # Only deep inspect repos with releases OR known IOCs
-        has_releases = len(releases) > 0
-        is_known_repo = candidate.repo_name in config.KNOWN_MALICIOUS_REPOS
-        is_known_account = candidate.owner_login in config.KNOWN_MALICIOUS_ACCOUNTS
-
-        if not has_releases and not is_known_repo and not is_known_account:
-            continue
-
-        # Deep inspect
+        # Fetch README first (needed for scoring)
         try:
             readme = await scanner.get_readme(candidate.repo_id)
         except Exception:
             readme = ""
+
+        # Check releases (boosts score but not required)
+        try:
+            releases = await scanner.get_releases(candidate.repo_id)
+        except Exception:
+            releases = []
 
         try:
             files = await scanner.get_file_tree(candidate.repo_id)

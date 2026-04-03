@@ -13,23 +13,43 @@ ENABLED_PLATFORMS = os.environ.get(
 DASHBOARD_PORT = int(os.environ.get("PORT", 8422))
 AUTO_SCAN_INTERVAL_MINUTES = 0  # 0 = disabled
 DAYS_BACK = int(os.environ.get("DAYS_BACK", 7))
-STAR_THRESHOLD = int(os.environ.get("STAR_THRESHOLD", 50))
-MIN_SCORE = int(os.environ.get("MIN_SCORE", 10))
+STAR_THRESHOLD = int(os.environ.get("STAR_THRESHOLD", 100))
+MIN_SCORE = int(os.environ.get("MIN_SCORE", 5))
 DB_PATH = os.environ.get("DB_PATH", "lure_monitor.db")
 
 # ── Search queries (shared across all platforms) ─────────────────────────────
 
 SEARCH_QUERIES = [
+    # Core leak terms
     "claude code leaked",
     "claude code source leaked",
     "claude source code leak",
+    "claude code leak",
+    "claude-code-leaked",
+    "leaked-claude-code",
+    "claude code exposed",
+    "claude code sourcemap",
+    "claude code source map",
+    # Mirrors and forks
+    "claude code source",
+    "claude code full source",
+    "anthropic leaked source",
+    "anthropic source code",
+    "anthropic-leaked-source-code",
+    # Obfuscated variants
+    "claw code leaked",
+    "claw-code",
+    "claw-decode",
+    "claude harness decoded",
+    # Malware lures
     "claude code cracked",
     "claude enterprise unlock",
     "claude no limits source",
-    "anthropic leaked source",
-    "claude code full source",
-    "leaked-claude-code",
     "claude code download zip",
+    "ClaudeCode_x64",
+    # Analysis/research repos (still part of the leak ecosystem)
+    "claude code wiki leaked",
+    "claude code reverse engineer",
 ]
 
 # ── Known IOCs (Zscaler ThreatLabz) ─────────────────────────────────────────
