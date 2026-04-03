@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Code Lure Monitor</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        /* Inline font fallback */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        code, .mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+    <h1><span>&#9632;</span> Claude Code Lure Monitor</h1>
+    <div class="header-actions">
+        <button class="btn" onclick="toggleSettings()">Settings</button>
+        <button class="btn btn-primary" id="scanBtn" onclick="startScan()" {% if scan_running %}disabled{% endif %}>
+            {% if scan_running %}Scanning...{% else %}Scan Now{% endif %}
+        </button>
+    </div>
+</header>
+
+<!-- Progress bar (hidden by default) -->
+<div class="scan-progress" id="scanProgress">
+    <div class="progress-text" id="progressText">Initializing scan...</div>
+    <div class="progress-bar"><div class="fill" id="progressFill" style="width: 0%"></div></div>
+</div>
+
+<!-- Stats Cards -->
+<div class="stats-grid">
+    <div class="stat-card total">
+        <div class="label">Total Findings</div>
+        <div class="value" id="statTotal">{{ stats.total }}</div>
+    </div>
+    <div class="stat-card new">
+        <div class="label">New</div>
+        <div class="value" id="statNew">{{ stats.new }}</div>
+    </div>
+    <div class="stat-card critical">
+        <div class="label">Critical</div>
+        <div class="value" id="statCritical">{{ stats.critical }}</div>
+    </div>
+    <div class="stat-card high">
+        <div class="label">High</div>
+        <div class="value" id="statHigh">{{ stats.high }}</div>
+    </div>
+    <div class="stat-card platforms">
+        <div class="label">Platforms</div>
+        <div class="value" id="statPlatforms">{{ stats.platforms_scanned }}/{{ stats.platforms_total }}</div>
+    </div>
+</div>
+
+<!-- Platform Status Bar -->
+<div class="platform-bar" id="platformBar">
+    {% for p in platforms %}
+    <div class="platform-chip" id="chip-{{ p }}">
+        <span class="dot" id="dot-{{ p }}"></span>
+        <span>{{ p | capitalize }}</span>
+        <span class="count" id="count-{{ p }}">-</span>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+    <select id="filterPlatform" onchange="applyFilters()">
+        <option value="">All Platforms</option>
+        {% for p in platforms %}
+        <option value="{{ p }}">{{ p | capitalize }}</option>
+        {% endfor %}
+    </select>
+    <select id="filterSeverity" onchange="applyFilters()">
+        <option value="">All Severities</option>
+        <option value="CRITICAL">Critical</option>
+        <option value="HIGH">High</option>
+        <option value="MEDIUM">Medium</option>
+        <option value="LOW">Low</option>
+    </select>
+    <label>
+        <input type="checkbox" id="filterNew" onchange="applyFilters()"> New only
+    </label>
+    <label>
+        <input type="checkbox" id="filterDismissed" onchange="applyFilters()"> Show dismissed
+    </label>
+</div>
+
+<!-- Findings Table -->
+<div class="findings-section">
+    {% if findings %}
+    <table class="findings-table" id="findingsTable">
+        <thead>
+            <tr>
+                <th onclick="sortTable(0)">Status</th>
+                <th onclick="sortTable(1)">Platform</th>
+                <th onclick="sortTable(2)">Repository</th>
+                <th onclick="sortTable(3)">Score <span class="sort-arrow">&#9660;</span></th>
+                <th onclick="sortTable(4)">Severity</th>
+                <th onclick="sortTable(5)">Stars</th>
+                <th onclick="sortTable(6)">Releases</th>
+            </tr>
+        </thead>
+        <tbody id="findingsBody">
+            {% for f in findings %}
+            <tr class="finding-row"
+                data-platform="{{ f.platform }}"
+                data-severity="{{ f.severity }}"
+                data-new="{{ f.is_new | lower }}"
+                data-score="{{ f.score }}"
+                onclick="toggleDetails('details-{{ loop.index }}')">
+                <td>
+                    {% if f.is_new %}<span class="badge badge-new">NEW</span>{% endif %}
+                </td>
+                <td><span class="badge-platform {{ f.platform }}">{{ f.platform }}</span></td>
+                <td>
+                    <a href="{{ f.repo_url }}" target="_blank" class="repo-link" onclick="event.stopPropagation()">
+                        {{ f.repo_name }}
+                    </a>
+                    {% if f.description %}
+                    <br><small style="color: var(--text-muted)">{{ f.description[:80] }}{% if f.description|length > 80 %}...{% endif %}</small>
+                    {% endif %}
+                </td>
+                <td class="mono">{{ f.score }}</td>
+                <td><span class="badge badge-{{ f.severity | lower }}">{{ f.severity }}</span></td>
+                <td>{{ f.stars }}</td>
+                <td>{{ f.release_assets | length }} asset{{ 's' if f.release_assets | length != 1 else '' }}</td>
+            </tr>
+            <tr>
+                <td colspan="7" style="padding: 0; border: none;">
+                    <div class="row-details" id="details-{{ loop.index }}">
+                        <h4>Flags ({{ f.reasons | length }})</h4>
+                        <ul>
+                            {% for reason in f.reasons %}
+                            <li>{{ reason }}</li>
+                            {% endfor %}
+                        </ul>
+
+                        {% if f.release_assets %}
+                        <h4>Release Assets</h4>
+                        <table class="release-table">
+                            <thead>
+                                <tr><th>File</th><th>Size</th><th>Downloads</th><th>Tag</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for a in f.release_assets %}
+                                <tr>
+                                    <td class="mono">{{ a.name }}</td>
+                                    <td>{{ a.size_mb }} MB</td>
+                                    <td>{{ a.download_count }}</td>
+                                    <td>{{ a.tag }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% endif %}
+
+                        {% if f.suspicious_files %}
+                        <h4>Suspicious Files</h4>
+                        <ul>
+                            {% for sf in f.suspicious_files %}
+                            <li class="mono">{{ sf }}</li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+
+                        <h4>Owner Info</h4>
+                        <ul>
+                            <li>Login: <code>{{ f.owner_login or 'unknown' }}</code></li>
+                            {% if f.owner_age_days is not none %}
+                            <li>Account age: {{ f.owner_age_days }} days</li>
+                            {% endif %}
+                            {% if f.owner_pub_repos is not none %}
+                            <li>Public repos: {{ f.owner_pub_repos }}</li>
+                            {% endif %}
+                        </ul>
+
+                        <button class="btn-dismiss" onclick="dismissFinding('{{ f.id }}', this); event.stopPropagation();">
+                            Dismiss
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <div class="icon">&#128269;</div>
+        <p>No findings yet. Click <strong>Scan Now</strong> to start monitoring.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Scan History -->
+<div class="scan-history">
+    <h3>Scan History</h3>
+    {% if scans %}
+    <ul class="scan-list">
+        {% for s in scans %}
+        <li class="{{ 'failed' if 'failed' in s.status else '' }}">
+            {{ s.started_at.strftime('%b %d %H:%M') if s.started_at else 'Unknown' }}
+            &mdash;
+            {{ s.total_found }} found
+            (<span class="new-count">{{ s.new_found }} new</span>)
+            &mdash;
+            <span class="duration">{{ '%.1f' | format(s.duration_seconds) }}s</span>
+            {% if 'failed' in s.status %}<span style="color: var(--red)"> FAILED</span>{% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p style="color: var(--text-muted); font-size: 12px;">No scans yet.</p>
+    {% endif %}
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settingsModal">
+    <div class="modal">
+        <h2>Settings</h2>
+        <label>
+            Days back:
+            <input type="number" id="settingsDays" value="7" min="1" max="90">
+        </label>
+        <label>
+            Platforms:
+            {% for p in platforms %}
+            <label style="display: inline-flex; margin-right: 12px;">
+                <input type="checkbox" class="platform-toggle" value="{{ p }}" checked> {{ p | capitalize }}
+            </label>
+            {% endfor %}
+        </label>
+        <div class="modal-actions">
+            <button class="btn" onclick="toggleSettings()">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── Scan control ────────────────────────────────────────────────────────────
+
+function startScan() {
+    const btn = document.getElementById('scanBtn');
+    const progress = document.getElementById('scanProgress');
+    const progressText = document.getElementById('progressText');
+    const progressFill = document.getElementById('progressFill');
+
+    btn.disabled = true;
+    btn.textContent = 'Scanning...';
+    progress.classList.add('show');
+    progressText.textContent = 'Starting scan...';
+    progressFill.style.width = '5%';
+
+    // Get settings
+    const days = document.getElementById('settingsDays').value;
+    const platformToggles = document.querySelectorAll('.platform-toggle:checked');
+    const platforms = Array.from(platformToggles).map(el => el.value);
+
+    // Trigger scan
+    fetch('/api/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platforms, days_back: parseInt(days) }),
+    });
+
+    // Listen for SSE progress
+    const evtSource = new EventSource('/api/scan/stream');
+    const platformStatus = {};
+    const totalPlatforms = platforms.length;
+    let completedPlatforms = 0;
+
+    evtSource.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+
+        if (data.platform === 'heartbeat') return;
+
+        if (data.platform === 'all') {
+            // Scan complete
+            progressText.textContent = data.message;
+            progressFill.style.width = '100%';
+            evtSource.close();
+
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+            return;
+        }
+
+        // Update platform status
+        platformStatus[data.platform] = data;
+        const dot = document.getElementById('dot-' + data.platform);
+        const count = document.getElementById('count-' + data.platform);
+
+        if (data.status === 'searching') {
+            if (dot) { dot.className = 'dot scanning'; }
+            progressText.textContent = `[${data.platform}] Searching...`;
+        } else if (data.status === 'inspecting') {
+            if (count) count.textContent = data.found;
+            progressText.textContent = `[${data.platform}] Inspecting ${data.found} candidates...`;
+        } else if (data.status === 'done') {
+            if (dot) { dot.className = 'dot active'; }
+            if (count) count.textContent = data.found;
+            completedPlatforms++;
+            const pct = Math.round((completedPlatforms / totalPlatforms) * 90) + 10;
+            progressFill.style.width = pct + '%';
+            progressText.textContent = `[${data.platform}] ${data.message} (${completedPlatforms}/${totalPlatforms})`;
+        } else if (data.status === 'error') {
+            if (dot) { dot.className = 'dot error'; }
+            completedPlatforms++;
+        }
+    };
+
+    evtSource.onerror = function() {
+        evtSource.close();
+        btn.disabled = false;
+        btn.textContent = 'Scan Now';
+        progressText.textContent = 'Connection lost. Refresh to see results.';
+    };
+}
+
+
+// ── Row expand ──────────────────────────────────────────────────────────────
+
+function toggleDetails(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('show');
+}
+
+
+// ── Dismiss ─────────────────────────────────────────────────────────────────
+
+function dismissFinding(id, btn) {
+    fetch('/api/findings/' + encodeURIComponent(id) + '/dismiss', { method: 'POST' })
+        .then(() => {
+            const row = btn.closest('.row-details').parentElement.parentElement;
+            const prevRow = row.previousElementSibling;
+            if (prevRow) prevRow.style.display = 'none';
+            row.style.display = 'none';
+        });
+}
+
+
+// ── Filters ─────────────────────────────────────────────────────────────────
+
+function applyFilters() {
+    const platform = document.getElementById('filterPlatform').value;
+    const severity = document.getElementById('filterSeverity').value;
+    const newOnly = document.getElementById('filterNew').checked;
+    const showDismissed = document.getElementById('filterDismissed').checked;
+
+    const rows = document.querySelectorAll('.finding-row');
+    rows.forEach(row => {
+        let show = true;
+        if (platform && row.dataset.platform !== platform) show = false;
+        if (severity && row.dataset.severity !== severity) show = false;
+        if (newOnly && row.dataset.new !== 'true') show = false;
+
+        row.style.display = show ? '' : 'none';
+        // Also hide/show the details row (next sibling)
+        const next = row.nextElementSibling;
+        if (next && !next.classList.contains('finding-row')) {
+            next.style.display = show ? '' : 'none';
+        }
+    });
+}
+
+
+// ── Sort ────────────────────────────────────────────────────────────────────
+
+let sortDir = -1;
+function sortTable(col) {
+    const tbody = document.getElementById('findingsBody');
+    if (!tbody) return;
+
+    const rowPairs = [];
+    const rows = tbody.children;
+    for (let i = 0; i < rows.length; i += 2) {
+        rowPairs.push([rows[i], rows[i + 1]]);
+    }
+
+    rowPairs.sort((a, b) => {
+        const cellA = a[0].children[col]?.textContent?.trim() || '';
+        const cellB = b[0].children[col]?.textContent?.trim() || '';
+
+        // Try numeric sort
+        const numA = parseFloat(cellA);
+        const numB = parseFloat(cellB);
+        if (!isNaN(numA) && !isNaN(numB)) {
+            return (numA - numB) * sortDir;
+        }
+        return cellA.localeCompare(cellB) * sortDir;
+    });
+
+    sortDir *= -1;
+
+    // Rebuild table
+    rowPairs.forEach(([dataRow, detailRow]) => {
+        tbody.appendChild(dataRow);
+        if (detailRow) tbody.appendChild(detailRow);
+    });
+}
+
+
+// ── Settings modal ──────────────────────────────────────────────────────────
+
+function toggleSettings() {
+    document.getElementById('settingsModal').classList.toggle('show');
+}
+
+// Close modal on overlay click
+document.getElementById('settingsModal').addEventListener('click', function(e) {
+    if (e.target === this) toggleSettings();
+});
+
+// ── Platform counts on load ─────────────────────────────────────────────────
+
+(function() {
+    const rows = document.querySelectorAll('.finding-row');
+    const counts = {};
+    rows.forEach(row => {
+        const p = row.dataset.platform;
+        counts[p] = (counts[p] || 0) + 1;
+    });
+    Object.entries(counts).forEach(([p, c]) => {
+        const el = document.getElementById('count-' + p);
+        if (el) el.textContent = c;
+        const dot = document.getElementById('dot-' + p);
+        if (dot && c > 0) dot.classList.add('active');
+    });
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,7 @@
+output/
+*.db
+__pycache__/
+.venv/
+*.pyc
+docs/
+.git/
