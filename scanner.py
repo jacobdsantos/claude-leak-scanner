@@ -227,11 +227,6 @@ async def scan_platform(
         except Exception:
             readme = ""
 
-        # Relevance gate: for known accounts, skip repos not about Claude
-        if is_known_account and not is_known_repo:
-            if not is_claude_relevant(candidate, readme):
-                continue
-
         try:
             files = await scanner.get_file_tree(candidate.repo_id)
         except Exception:

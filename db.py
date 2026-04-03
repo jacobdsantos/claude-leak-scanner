@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import aiosqlite
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -128,10 +128,19 @@ async def get_findings(
 
     rows = await db.execute(query, params)
     findings = []
+    now = datetime.now(timezone.utc)
     for row in await rows.fetchall():
         r = dict(row)
-        # Determine if "new" — first_seen == last_seen means first scan
-        is_new = r["first_seen"] == r["last_seen"] and r["scan_count"] == 1
+        # "NEW" = first seen within the last 24 hours
+        is_new = False
+        if r["first_seen"]:
+            try:
+                first = datetime.fromisoformat(r["first_seen"])
+                if first.tzinfo is None:
+                    first = first.replace(tzinfo=timezone.utc)
+                is_new = (now - first).total_seconds() < 86400
+            except ValueError:
+                pass
         if new_only and not is_new:
             continue
         findings.append(ScoredFinding(
@@ -212,16 +221,17 @@ async def get_scans(db: aiosqlite.Connection, limit: int = 20) -> list[ScanRecor
 
 async def get_stats(db: aiosqlite.Connection) -> DashboardStats:
     # Counts by severity (excluding dismissed)
+    cutoff_24h = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
     row = await db.execute("""
         SELECT
             COUNT(*) as total,
-            SUM(CASE WHEN first_seen = last_seen AND scan_count = 1 THEN 1 ELSE 0 END) as new,
+            SUM(CASE WHEN first_seen >= ? THEN 1 ELSE 0 END) as new,
             SUM(CASE WHEN severity = 'CRITICAL' THEN 1 ELSE 0 END) as critical,
             SUM(CASE WHEN severity = 'HIGH' THEN 1 ELSE 0 END) as high,
             SUM(CASE WHEN severity = 'MEDIUM' THEN 1 ELSE 0 END) as medium,
             SUM(CASE WHEN severity = 'LOW' THEN 1 ELSE 0 END) as low
         FROM findings WHERE dismissed = 0
-    """)
+    """, (cutoff_24h,))
     r = dict(await row.fetchone())
 
     # Platforms with findings
