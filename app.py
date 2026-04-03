@@ -1,9 +1,10 @@
-"""FastAPI application — dashboard, scan API, SSE streaming."""
+"""FastAPI application — dashboard, scan API, SSE streaming, auto-scheduler."""
 
 from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
@@ -18,20 +19,71 @@ import db
 from models import ScanProgress
 from scanner import run_scan
 
+logger = logging.getLogger("lure-monitor")
+
 
 # ── State ────────────────────────────────────────────────────────────────────
 
 _scan_lock = asyncio.Lock()
 _scan_running = False
 _progress_queues: list[asyncio.Queue] = []
+_auto_scan_interval: int = config.AUTO_SCAN_INTERVAL_MINUTES  # 0 = disabled
+_auto_scan_task: asyncio.Task | None = None
+_last_scan_time: datetime | None = None
+_next_scan_time: datetime | None = None
+
+
+# ── Auto-scan scheduler ─────────────────────────────────────────────────────
+
+async def _auto_scan_loop():
+    """Background loop that runs scans at the configured interval."""
+    global _scan_running, _last_scan_time, _next_scan_time
+
+    while True:
+        interval = _auto_scan_interval
+        if interval <= 0:
+            # Disabled — sleep and check again
+            _next_scan_time = None
+            await asyncio.sleep(30)
+            continue
+
+        _next_scan_time = datetime.now(timezone.utc).__class__.now(timezone.utc)
+        from datetime import timedelta
+        _next_scan_time = datetime.now(timezone.utc) + timedelta(minutes=interval)
+
+        await asyncio.sleep(interval * 60)
+
+        if _scan_running:
+            logger.info("Auto-scan skipped — scan already running")
+            continue
+
+        logger.info(f"Auto-scan triggered (interval: {interval}m)")
+        _scan_running = True
+        try:
+            total, new = await run_scan(
+                platforms=config.ENABLED_PLATFORMS,
+                days_back=config.DAYS_BACK,
+            )
+            _last_scan_time = datetime.now(timezone.utc)
+            logger.info(f"Auto-scan complete: {total} findings ({new} new)")
+        except Exception as e:
+            logger.error(f"Auto-scan failed: {e}")
+        finally:
+            _scan_running = False
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _auto_scan_task
     # Initialize DB on startup
     database = await db.get_db()
     await database.close()
+    # Start auto-scan background task
+    _auto_scan_task = asyncio.create_task(_auto_scan_loop())
     yield
+    # Cleanup
+    if _auto_scan_task:
+        _auto_scan_task.cancel()
 
 
 app = FastAPI(title="Claude Code Lure Monitor", lifespan=lifespan)
@@ -73,6 +125,8 @@ async def dashboard(request: Request):
             "scans": scans,
             "platforms": config.ENABLED_PLATFORMS,
             "scan_running": _scan_running,
+            "auto_interval": _auto_scan_interval,
+            "next_scan": _next_scan_time.isoformat() if _next_scan_time else None,
         },
     )
 
@@ -139,7 +193,38 @@ async def trigger_scan(request: Request):
 @app.get("/api/scan/status")
 async def scan_status():
     """Poll endpoint — check if scan is running."""
-    return JSONResponse({"running": _scan_running})
+    return JSONResponse({
+        "running": _scan_running,
+        "auto_interval": _auto_scan_interval,
+        "last_scan": _last_scan_time.isoformat() if _last_scan_time else None,
+        "next_scan": _next_scan_time.isoformat() if _next_scan_time else None,
+    })
+
+
+@app.get("/api/schedule")
+async def get_schedule():
+    """Get current auto-scan schedule."""
+    return JSONResponse({
+        "interval_minutes": _auto_scan_interval,
+        "last_scan": _last_scan_time.isoformat() if _last_scan_time else None,
+        "next_scan": _next_scan_time.isoformat() if _next_scan_time else None,
+        "running": _scan_running,
+    })
+
+
+@app.post("/api/schedule")
+async def set_schedule(request: Request):
+    """Set auto-scan interval. 0 = disabled."""
+    global _auto_scan_interval
+    body = await request.json()
+    interval = int(body.get("interval_minutes", 0))
+    if interval < 0:
+        interval = 0
+    _auto_scan_interval = interval
+    return JSONResponse({
+        "interval_minutes": _auto_scan_interval,
+        "status": "enabled" if interval > 0 else "disabled",
+    })
 
 
 @app.get("/api/scan/stream")

@@ -13,6 +13,7 @@
 <header class="header">
     <h1><span>&#9632;</span> Claude Code Lure Monitor</h1>
     <div class="header-actions">
+        <span id="scheduleIndicator" class="schedule-indicator" style="display:none;"></span>
         <button class="btn" onclick="toggleSettings()">Settings</button>
         <button class="btn btn-primary" id="scanBtn" onclick="startScan()" {% if scan_running %}disabled{% endif %}>
             {% if scan_running %}Scanning...{% else %}Scan Now{% endif %}
@@ -228,7 +229,12 @@
             </label>
             {% endfor %}
         </label>
+        <label>
+            Auto-scan interval (minutes, 0 = off):
+            <input type="number" id="settingsInterval" value="{{ auto_interval }}" min="0" max="1440" step="5">
+        </label>
         <div class="modal-actions">
+            <button class="btn-primary" onclick="saveSchedule()">Save Schedule</button>
             <button class="btn" onclick="toggleSettings()">Close</button>
         </div>
     </div>
@@ -446,6 +452,58 @@ document.getElementById('settingsModal').addEventListener('click', function(e) {
         const dot = document.getElementById('dot-' + p);
         if (dot && c > 0) dot.classList.add('active');
     });
+})();
+
+
+// ── Auto-scan schedule ─────────────────────────────────────────────────────
+
+async function saveSchedule() {
+    const interval = parseInt(document.getElementById('settingsInterval').value) || 0;
+    const resp = await fetch('/api/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interval_minutes: interval }),
+    });
+    const data = await resp.json();
+    updateScheduleIndicator(data.interval_minutes);
+    toggleSettings();
+}
+
+function updateScheduleIndicator(interval) {
+    const el = document.getElementById('scheduleIndicator');
+    if (!el) return;
+    if (interval > 0) {
+        let label;
+        if (interval < 60) label = interval + 'm';
+        else if (interval % 60 === 0) label = (interval / 60) + 'h';
+        else label = Math.floor(interval / 60) + 'h ' + (interval % 60) + 'm';
+        el.textContent = 'AUTO ' + label;
+        el.style.display = 'inline-flex';
+    } else {
+        el.style.display = 'none';
+    }
+}
+
+// Check schedule on load + poll for auto-scan completions
+(function initSchedule() {
+    const initialInterval = {{ auto_interval }};
+    updateScheduleIndicator(initialInterval);
+
+    // If auto-scan is enabled, poll to detect scan completion and auto-reload
+    if (initialInterval > 0) {
+        let wasRunning = false;
+        setInterval(async () => {
+            try {
+                const resp = await fetch('/api/scan/status');
+                const data = await resp.json();
+                if (wasRunning && !data.running) {
+                    // Auto-scan just finished — reload to show new data
+                    window.location.reload();
+                }
+                wasRunning = data.running;
+            } catch (e) {}
+        }, 15000);
+    }
 })();
 </script>
 

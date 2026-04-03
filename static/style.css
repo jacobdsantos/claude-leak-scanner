@@ -133,6 +133,28 @@ body::before {
     align-items: center;
 }
 
+/* ── Schedule indicator ─────────────────────────────────────────────────── */
+
+.schedule-indicator {
+    font-family: var(--font-data);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    color: var(--sig-active);
+    background: rgba(16, 232, 122, 0.08);
+    border: 1px solid rgba(16, 232, 122, 0.2);
+    padding: 4px 10px;
+    border-radius: 1px;
+    align-items: center;
+    gap: 6px;
+    animation: pulse-glow 3s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+    0%, 100% { border-color: rgba(16, 232, 122, 0.2); }
+    50% { border-color: rgba(16, 232, 122, 0.5); }
+}
+
 /* ── Buttons ───────────────────────────────────────────────────────────── */
 
 .btn {
