@@ -310,10 +310,31 @@ function startScan() {
 
     evtSource.onerror = function() {
         evtSource.close();
-        btn.disabled = false;
-        btn.textContent = 'Scan Now';
-        progressText.textContent = 'Connection lost. Refresh to see results.';
+        // SSE dropped — fall back to polling
+        progressText.textContent = 'Streaming lost, polling for completion...';
+        pollForCompletion(btn, progress, progressText, progressFill);
     };
+}
+
+// Fallback: poll /api/scan/status every 5s until scan finishes
+function pollForCompletion(btn, progress, progressText, progressFill) {
+    const poll = setInterval(async () => {
+        try {
+            const resp = await fetch('/api/scan/status');
+            const data = await resp.json();
+            if (!data.running) {
+                clearInterval(poll);
+                progressText.textContent = 'Scan complete. Reloading...';
+                progressFill.style.width = '100%';
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                progressFill.style.width = '60%';
+                progressText.textContent = 'Scan in progress... (polling)';
+            }
+        } catch (e) {
+            // Server might be busy, keep polling
+        }
+    }, 5000);
 }
 
 

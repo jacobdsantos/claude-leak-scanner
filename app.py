@@ -136,6 +136,12 @@ async def trigger_scan(request: Request):
     return JSONResponse({"status": "started", "platforms": platforms})
 
 
+@app.get("/api/scan/status")
+async def scan_status():
+    """Poll endpoint — check if scan is running."""
+    return JSONResponse({"running": _scan_running})
+
+
 @app.get("/api/scan/stream")
 async def scan_stream():
     """SSE endpoint for live scan progress."""
@@ -146,21 +152,26 @@ async def scan_stream():
         try:
             while True:
                 try:
-                    data = await asyncio.wait_for(queue.get(), timeout=30)
+                    data = await asyncio.wait_for(queue.get(), timeout=8)
                     yield f"data: {data}\n\n"
-                    # Check if scan is complete
                     parsed = json.loads(data)
                     if parsed.get("status") in ("complete", "error"):
                         break
                 except asyncio.TimeoutError:
+                    # Send heartbeat every 8s to keep Render proxy alive
                     yield f"data: {json.dumps({'platform': 'heartbeat', 'status': 'waiting', 'found': 0, 'message': ''})}\n\n"
         finally:
-            _progress_queues.remove(queue)
+            if queue in _progress_queues:
+                _progress_queues.remove(queue)
 
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
     )
 
 
