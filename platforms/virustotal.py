@@ -136,77 +136,79 @@ class VirusTotalScanner(PlatformScanner):
         since_ts = int((datetime.now(timezone.utc) - timedelta(days=days_back)).timestamp())
         seen_sha256: set[str] = set()
 
-        # One entry per ruleset; empty string = poll ALL notifications (no filter)
-        rulesets = config.VT_HUNT_RULESET_NAMES or [""]
+        # VT's ruleset_name filter is unreliable — it returns empty even when
+        # notifications exist. Instead: fetch ALL notifications in one pass and
+        # filter client-side by checking if notification tags contain our ruleset names.
+        configured_rulesets = set(config.VT_HUNT_RULESET_NAMES)
+        logger.info(
+            f"[vt_livehunt] Polling ALL notifications, filtering by tags: {configured_rulesets or 'ALL'}"
+            f" | days_back={days_back}"
+        )
 
-        for ruleset in rulesets:
-            label = ruleset or "ALL"
-            logger.info(f"[vt_livehunt] Polling ruleset='{label}' days_back={days_back}")
-            cursor: Optional[str] = None
-            page    = 0
-            max_pages = 20  # 20 × 40 = 800 notifications per ruleset
+        cursor: Optional[str] = None
+        page      = 0
+        max_pages = 50  # 50 × 40 = 2000 notifications max
 
-            while page < max_pages:
-                params: dict = {"limit": 40}
-                if cursor:
-                    params["cursor"] = cursor
-                if ruleset:
-                    params["filter"] = f"ruleset_name:{ruleset}"
+        while page < max_pages:
+            params: dict = {"limit": 40}
+            if cursor:
+                params["cursor"] = cursor
+            # No server-side filter — client-side filtering below is reliable
 
-                try:
-                    resp = await http.get(
-                        f"{_VT_BASE}/intelligence/hunting_notifications", params=params
-                    )
-                except Exception as e:
-                    logger.error(f"[vt_livehunt] Network error (ruleset={label}): {e}")
+            try:
+                resp = await http.get(
+                    f"{_VT_BASE}/intelligence/hunting_notifications", params=params
+                )
+            except Exception as e:
+                logger.error(f"[vt_livehunt] Network error: {e}")
+                break
+
+            if resp.status_code == 401:
+                logger.error("[vt_livehunt] 401 Unauthorized — check VT_API_KEY")
+                return []
+            if resp.status_code == 403:
+                logger.error("[vt_livehunt] 403 Forbidden — Livehunt requires VT Intelligence")
+                return []
+            if resp.status_code == 429:
+                logger.warning("[vt_livehunt] Rate limited (429)")
+                break
+            if not resp.is_success:
+                logger.error(f"[vt_livehunt] HTTP {resp.status_code}")
+                break
+
+            data          = resp.json()
+            notifications = data.get("data", [])
+            if not notifications:
+                logger.info("[vt_livehunt] No more notifications")
+                break
+
+            stop_paginating = False
+            for notif in notifications:
+                attrs      = notif.get("attributes", {})
+                notif_date = attrs.get("date", 0)
+                tags       = attrs.get("tags", [])
+                rule_name  = attrs.get("rule_name") or "unknown_rule"
+
+                # Client-side ruleset filter: skip notifications not in our rulesets
+                if configured_rulesets and not any(t in configured_rulesets for t in tags):
+                    continue
+
+                # SHA256 is in tags[0] (first 64-char hex tag), not in attrs.sha256
+                sha256 = attrs.get("sha256") or ""
+                if not sha256:
+                    for tag in tags:
+                        if len(tag) == 64 and all(c in "0123456789abcdefABCDEF" for c in tag):
+                            sha256 = tag.lower()
+                            break
+
+                # Stop when past the lookback window
+                if notif_date and notif_date < since_ts:
+                    stop_paginating = True
                     break
 
-                if resp.status_code == 401:
-                    logger.error("[vt_livehunt] 401 Unauthorized — check VT_API_KEY")
-                    return []   # Fatal: stop all ruleset polling
-                if resp.status_code == 403:
-                    logger.error(
-                        "[vt_livehunt] 403 Forbidden — Livehunt requires VT Intelligence"
-                    )
-                    return []
-                if resp.status_code == 429:
-                    logger.warning(f"[vt_livehunt] Rate limited (429) on ruleset={label}")
-                    break
-                if not resp.is_success:
-                    logger.error(f"[vt_livehunt] HTTP {resp.status_code} on ruleset={label}")
-                    break
-
-                data          = resp.json()
-                notifications = data.get("data", [])
-                if not notifications:
-                    logger.info(f"[vt_livehunt] No more notifications for ruleset={label}")
-                    break
-
-                stop_paginating = False
-                for notif in notifications:
-                    attrs      = notif.get("attributes", {})
-                    notif_date = attrs.get("date", 0)
-                    rule_name  = (
-                        attrs.get("rule_name")
-                        or attrs.get("ruleset_name")
-                        or "unknown_rule"
-                    )
-                    # VT puts the file SHA256 in tags[0], not in a dedicated sha256 field
-                    sha256 = attrs.get("sha256") or ""
-                    if not sha256:
-                        for tag in attrs.get("tags", []):
-                            if len(tag) == 64 and all(c in "0123456789abcdefABCDEF" for c in tag):
-                                sha256 = tag.lower()
-                                break
-
-                    # Stop when past the lookback window
-                    if notif_date and notif_date < since_ts:
-                        stop_paginating = True
-                        break
-
-                    if not sha256 or sha256 in seen_sha256:
-                        continue
-                    seen_sha256.add(sha256)
+                if not sha256 or sha256 in seen_sha256:
+                    continue
+                seen_sha256.add(sha256)
 
                     # Enrich: fetch full file details from VT
                     try:
@@ -261,7 +263,7 @@ class VirusTotalScanner(PlatformScanner):
                     )
                     self._scored_findings.append(finding)
                     logger.info(
-                        f"[vt_livehunt] [{label}] {filename} | score={score} "
+                        f"[vt_livehunt] {filename} | rule={rule_name} | score={score} "
                         f"| {malicious}/{total} dets"
                     )
 
@@ -275,8 +277,7 @@ class VirusTotalScanner(PlatformScanner):
                 page += 1
 
         logger.info(
-            f"[vt_livehunt] Done — {len(self._scored_findings)} total findings "
-            f"across {len(rulesets)} ruleset(s)"
+            f"[vt_livehunt] Done — {len(self._scored_findings)} total findings"
         )
         return []   # VT findings bypass the repo scoring pipeline
 
