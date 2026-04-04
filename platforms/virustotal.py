@@ -319,7 +319,7 @@ class VirusTotalScanner(PlatformScanner):
                 "type": "retrohunt_job",
                 "attributes": {
                     "rules":    rule_source,
-                    "corpus":   "goodware+malware",   # full VT corpus
+                    "corpus":   "main",   # VT main corpus (all submitted files)
                     "time_range": {
                         "start": start_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
                         "end":   end_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -384,7 +384,7 @@ class VirusTotalScanner(PlatformScanner):
                 )
             self._last_rh_status = status  # type: ignore[attr-defined]
 
-            if status == "completed":
+            if status in ("completed", "finished"):   # VT uses "finished" not "completed"
                 num_matches = job_attrs.get("num_matches", "?")
                 logger.info(f"[vt_retrohunt] Job {job_id} COMPLETE — {num_matches} matches")
                 break
