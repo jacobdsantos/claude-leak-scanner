@@ -210,62 +210,62 @@ class VirusTotalScanner(PlatformScanner):
                     continue
                 seen_sha256.add(sha256)
 
-                    # Enrich: fetch full file details from VT
-                    try:
-                        file_resp = await http.get(f"{_VT_BASE}/files/{sha256}")
-                        if file_resp.status_code == 404:
-                            continue
-                        if not file_resp.is_success:
-                            logger.warning(
-                                f"[vt_livehunt] File {sha256[:12]}… → {file_resp.status_code}"
-                            )
-                            continue
-                        file_attrs = file_resp.json().get("data", {}).get("attributes", {})
-                    except Exception as e:
-                        logger.warning(f"[vt_livehunt] File fetch error {sha256[:12]}…: {e}")
+                # Enrich: fetch full file details from VT
+                try:
+                    file_resp = await http.get(f"{_VT_BASE}/files/{sha256}")
+                    if file_resp.status_code == 404:
                         continue
-
-                    filename = (
-                        file_attrs.get("meaningful_name")
-                        or file_attrs.get("name")
-                        or f"{sha256[:16]}…"
-                    )
-
-                    score, reasons = self._score_file(file_attrs, sha256, filename, rule_name)
-                    if score < config.MIN_SCORE:
+                    if not file_resp.is_success:
+                        logger.warning(
+                            f"[vt_livehunt] File {sha256[:12]}… → {file_resp.status_code}"
+                        )
                         continue
+                    file_attrs = file_resp.json().get("data", {}).get("attributes", {})
+                except Exception as e:
+                    logger.warning(f"[vt_livehunt] File fetch error {sha256[:12]}…: {e}")
+                    continue
 
-                    stats     = file_attrs.get("last_analysis_stats", {})
-                    malicious = stats.get("malicious", 0)
-                    total     = max(sum(stats.values()), 1)
-                    size_mb   = round((file_attrs.get("size") or 0) / (1024 * 1024), 1)
-                    first_sub = file_attrs.get("first_submission_date")
-                    first_seen_dt = (
-                        datetime.fromtimestamp(first_sub, tz=timezone.utc)
-                        if first_sub else datetime.now(timezone.utc)
-                    )
+                filename = (
+                    file_attrs.get("meaningful_name")
+                    or file_attrs.get("name")
+                    or f"{sha256[:16]}…"
+                )
 
-                    finding = ScoredFinding(
-                        id=f"vt_livehunt:{sha256}",
-                        platform="vt_livehunt",
-                        repo_name=filename,
-                        repo_url=f"https://www.virustotal.com/gui/file/{sha256}",
-                        description=(
-                            f"{file_attrs.get('type_description', 'Unknown type')} · "
-                            f"{malicious}/{total} detections · {size_mb} MB"
-                        ),
-                        owner_login=rule_name,   # hunt rule name shown in VT Files tab
-                        score=score,
-                        severity=config.severity_for_score(score),
-                        reasons=reasons,
-                        suspicious_files=[sha256],   # full SHA256 — never truncated
-                        repo_created_at=first_seen_dt.isoformat(),
-                    )
-                    self._scored_findings.append(finding)
-                    logger.info(
-                        f"[vt_livehunt] {filename} | rule={rule_name} | score={score} "
-                        f"| {malicious}/{total} dets"
-                    )
+                score, reasons = self._score_file(file_attrs, sha256, filename, rule_name)
+                if score < config.MIN_SCORE:
+                    continue
+
+                stats     = file_attrs.get("last_analysis_stats", {})
+                malicious = stats.get("malicious", 0)
+                total     = max(sum(stats.values()), 1)
+                size_mb   = round((file_attrs.get("size") or 0) / (1024 * 1024), 1)
+                first_sub = file_attrs.get("first_submission_date")
+                first_seen_dt = (
+                    datetime.fromtimestamp(first_sub, tz=timezone.utc)
+                    if first_sub else datetime.now(timezone.utc)
+                )
+
+                finding = ScoredFinding(
+                    id=f"vt_livehunt:{sha256}",
+                    platform="vt_livehunt",
+                    repo_name=filename,
+                    repo_url=f"https://www.virustotal.com/gui/file/{sha256}",
+                    description=(
+                        f"{file_attrs.get('type_description', 'Unknown type')} · "
+                        f"{malicious}/{total} detections · {size_mb} MB"
+                    ),
+                    owner_login=rule_name,   # hunt rule name shown in VT Files tab
+                    score=score,
+                    severity=config.severity_for_score(score),
+                    reasons=reasons,
+                    suspicious_files=[sha256],   # full SHA256 — never truncated
+                    repo_created_at=first_seen_dt.isoformat(),
+                )
+                self._scored_findings.append(finding)
+                logger.info(
+                    f"[vt_livehunt] {filename} | rule={rule_name} | score={score} "
+                    f"| {malicious}/{total} dets"
+                )
 
                 if stop_paginating:
                     break
