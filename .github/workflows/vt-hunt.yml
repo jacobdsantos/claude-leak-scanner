@@ -1,8 +1,17 @@
 name: VT Livehunt
 
 on:
+  # Auto-trigger: fires immediately after the repo scanner finishes
+  workflow_run:
+    workflows: ["Lure Scanner"]
+    types: [completed]
+
+  # Standalone cron: also runs every 6h independently (catches notifications
+  # from files submitted to VT outside of repo scan windows)
   schedule:
-    - cron: '30 */6 * * *'   # Every 6h, offset by 30m from repo scanner
+    - cron: '30 */6 * * *'
+
+  # Manual trigger for on-demand runs or testing
   workflow_dispatch:
     inputs:
       days_back:
@@ -36,9 +45,11 @@ jobs:
       - name: Run VT livehunt
         env:
           VT_API_KEY: ${{ secrets.VT_API_KEY }}
-          VT_HUNT_RULESET_NAME: ${{ secrets.VT_HUNT_RULESET_NAME }}
+          VT_HUNT_RULESET_NAMES: ${{ secrets.VT_HUNT_RULESET_NAMES }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          DAYS_BACK: ${{ github.event.inputs.days_back || '7' }}
+          # workflow_run and schedule use 1 day lookback (frequent runs, small window)
+          # manual dispatch uses the input value
+          DAYS_BACK: ${{ github.event.inputs.days_back || '1' }}
           MIN_SCORE: '5'
         run: python run_vt_hunt.py
