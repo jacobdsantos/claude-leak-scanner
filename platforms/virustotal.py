@@ -260,6 +260,211 @@ class VirusTotalScanner(PlatformScanner):
         logger.info(f"[vt_livehunt] Total findings: {len(self._scored_findings)}")
         return []   # VT findings bypass the repo scoring pipeline
 
+    # ── Retrohunt ─────────────────────────────────────────────────────────────
+
+    async def retrohunt(
+        self,
+        rule_source: str,
+        days_back: int = 90,
+        poll_interval_seconds: int = 30,
+        max_wait_hours: int = 6,
+    ) -> list[ScoredFinding]:
+        """Submit a YARA retrohunt job, poll until complete, return scored findings.
+
+        Args:
+            rule_source:          Full YARA rule text to submit.
+            days_back:            How many days back to search (1–90).
+            poll_interval_seconds: How often to poll the job status.
+            max_wait_hours:        Bail out after this many hours even if not done.
+
+        Retrohunt jobs can take 1–6 hours depending on corpus size.
+        This method blocks the event loop during polling via asyncio.sleep.
+        Run it from a dedicated GH Actions job with a long timeout.
+        """
+        import asyncio
+
+        findings: list[ScoredFinding] = []
+
+        if not self._api_key:
+            logger.warning("[vt_retrohunt] VT_API_KEY not set — skipping")
+            return findings
+
+        http = await self.client()
+
+        # ── Submit job ────────────────────────────────────────────────────────
+        end_dt   = datetime.now(timezone.utc)
+        start_dt = end_dt - timedelta(days=min(days_back, 90))
+        payload  = {
+            "data": {
+                "type": "retrohunt_job",
+                "attributes": {
+                    "rules":    rule_source,
+                    "corpus":   "goodware+malware",   # full VT corpus
+                    "time_range": {
+                        "start": start_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        "end":   end_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    },
+                },
+            }
+        }
+
+        try:
+            submit = await http.post(
+                f"{_VT_BASE}/intelligence/retrohunt_jobs",
+                json=payload,
+            )
+        except Exception as e:
+            logger.error(f"[vt_retrohunt] Failed to submit job: {e}")
+            return findings
+
+        if submit.status_code == 401:
+            logger.error("[vt_retrohunt] 401 Unauthorized — check VT_API_KEY")
+            return findings
+        if submit.status_code == 403:
+            logger.error("[vt_retrohunt] 403 Forbidden — Retrohunt requires VT Intelligence")
+            return findings
+        if not submit.is_success:
+            logger.error(f"[vt_retrohunt] Submit failed {submit.status_code}: {submit.text[:200]}")
+            return findings
+
+        job_id = submit.json().get("data", {}).get("id", "")
+        if not job_id:
+            logger.error("[vt_retrohunt] No job ID returned from submit")
+            return findings
+
+        logger.info(
+            f"[vt_retrohunt] Job {job_id} submitted — searching {days_back} days back"
+            f" ({start_dt.strftime('%Y-%m-%d')} → {end_dt.strftime('%Y-%m-%d')})"
+        )
+
+        # ── Poll until complete ───────────────────────────────────────────────
+        max_polls = int(max_wait_hours * 3600 / poll_interval_seconds)
+        for poll in range(max_polls):
+            await asyncio.sleep(poll_interval_seconds)
+            try:
+                status_resp = await http.get(
+                    f"{_VT_BASE}/intelligence/retrohunt_jobs/{job_id}"
+                )
+                if not status_resp.is_success:
+                    logger.warning(f"[vt_retrohunt] Poll {poll+1}: status {status_resp.status_code}")
+                    continue
+                job_attrs = status_resp.json().get("data", {}).get("attributes", {})
+            except Exception as e:
+                logger.warning(f"[vt_retrohunt] Poll {poll+1} failed: {e}")
+                continue
+
+            status   = job_attrs.get("status", "unknown")
+            progress = job_attrs.get("progress", 0)
+
+            # Log every 5 polls or on status change
+            if poll % 5 == 0 or status != getattr(self, "_last_rh_status", None):
+                logger.info(
+                    f"[vt_retrohunt] Job {job_id}: {status} ({progress:.0f}%) "
+                    f"— poll {poll+1}/{max_polls}"
+                )
+            self._last_rh_status = status  # type: ignore[attr-defined]
+
+            if status == "completed":
+                num_matches = job_attrs.get("num_matches", "?")
+                logger.info(f"[vt_retrohunt] Job {job_id} COMPLETE — {num_matches} matches")
+                break
+            if status in ("aborted", "aborting", "failed"):
+                logger.error(f"[vt_retrohunt] Job {job_id} ended with status: {status}")
+                return findings
+        else:
+            logger.error(f"[vt_retrohunt] Job {job_id} timed out after {max_wait_hours}h")
+            return findings
+
+        # ── Fetch matching files (paginated) ──────────────────────────────────
+        cursor: Optional[str] = None
+        page      = 0
+        max_pages = 50   # cap at 50 × 40 = 2000 matches
+        seen_sha256: set[str] = set()
+
+        while page < max_pages:
+            params: dict = {"limit": 40}
+            if cursor:
+                params["cursor"] = cursor
+
+            try:
+                matches_resp = await http.get(
+                    f"{_VT_BASE}/intelligence/retrohunt_jobs/{job_id}/matching_files",
+                    params=params,
+                )
+                if not matches_resp.is_success:
+                    logger.error(f"[vt_retrohunt] Matches fetch {matches_resp.status_code}")
+                    break
+                matches_data = matches_resp.json()
+            except Exception as e:
+                logger.error(f"[vt_retrohunt] Matches fetch failed: {e}")
+                break
+
+            files = matches_data.get("data", [])
+            if not files:
+                break
+
+            for file_obj in files:
+                file_attrs = file_obj.get("attributes", {})
+                sha256     = file_obj.get("id") or file_attrs.get("sha256", "")
+                if not sha256 or sha256 in seen_sha256:
+                    continue
+                seen_sha256.add(sha256)
+
+                filename = (
+                    file_attrs.get("meaningful_name")
+                    or file_attrs.get("name")
+                    or f"{sha256[:16]}…"
+                )
+
+                score, reasons = self._score_file(
+                    file_attrs, sha256, filename, rule_name="retrohunt"
+                )
+                if score < config.MIN_SCORE:
+                    continue
+
+                stats     = file_attrs.get("last_analysis_stats", {})
+                malicious = stats.get("malicious", 0)
+                total     = max(sum(stats.values()), 1)
+                size_mb   = round((file_attrs.get("size") or 0) / (1024 * 1024), 1)
+                first_sub = file_attrs.get("first_submission_date")
+                first_seen_dt = (
+                    datetime.fromtimestamp(first_sub, tz=timezone.utc)
+                    if first_sub else datetime.now(timezone.utc)
+                )
+
+                finding = ScoredFinding(
+                    id=f"vt_retrohunt:{sha256}",
+                    platform="vt_retrohunt",
+                    repo_name=filename,
+                    repo_url=f"https://www.virustotal.com/gui/file/{sha256}",
+                    description=(
+                        f"{file_attrs.get('type_description', 'Unknown type')} · "
+                        f"{malicious}/{total} detections · {size_mb} MB"
+                    ),
+                    owner_login=f"retrohunt:{job_id[:8]}",
+                    score=score,
+                    severity=config.severity_for_score(score),
+                    reasons=reasons,
+                    suspicious_files=[sha256],   # full SHA256 — never truncated
+                    repo_created_at=first_seen_dt.isoformat(),
+                )
+                findings.append(finding)
+                logger.info(
+                    f"[vt_retrohunt] {filename} | score={score} | "
+                    f"{malicious}/{total} dets | {size_mb} MB"
+                )
+
+            meta   = matches_data.get("meta", {})
+            cursor = meta.get("cursor")
+            if not cursor:
+                break
+            page += 1
+
+        logger.info(
+            f"[vt_retrohunt] Ingested {len(findings)} findings from job {job_id}"
+        )
+        return findings
+
     # ── Stubs: not used for VT (all data fetched in search()) ────────────────
 
     async def get_readme(self, repo_id: str) -> str:

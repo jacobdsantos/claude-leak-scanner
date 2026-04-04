@@ -1,0 +1,47 @@
+name: VT Retrohunt
+
+on:
+  workflow_dispatch:
+    inputs:
+      days_back:
+        description: 'Days to search back in VT corpus (1–90)'
+        required: false
+        default: '30'
+      rule_file:
+        description: 'YARA rule file path (relative to repo root)'
+        required: false
+        default: 'yara/retrohunt_dropper.yar'
+
+# Only one retrohunt at a time — they take hours
+concurrency:
+  group: vt-retrohunt
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  retrohunt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360   # 6 hours — retrohunt jobs can take this long
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run retrohunt
+        env:
+          VT_API_KEY: ${{ secrets.VT_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          VT_RULE_FILE: ${{ github.event.inputs.rule_file }}
+          DAYS_BACK: ${{ github.event.inputs.days_back }}
+          MIN_SCORE: '5'
+        run: python run_vt_retrohunt.py
