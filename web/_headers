@@ -1,0 +1,5 @@
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' cdn.jsdelivr.net 'unsafe-inline'; connect-src 'self' *.supabase.co wss://*.supabase.co; style-src 'self' fonts.googleapis.com 'unsafe-inline'; font-src fonts.gstatic.com
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer

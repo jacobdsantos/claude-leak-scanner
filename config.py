@@ -8,18 +8,19 @@ ENABLED_PLATFORMS = os.environ.get(
     "ENABLED_PLATFORMS", "github,gitlab,codeberg,bitbucket,sourceforge"
 ).split(",")
 
-# ── Dashboard ─────────────────────────────────────────────────────────────────
+# ── Supabase ──────────────────────────────────────────────────────────────────
 
-# GitHub token (optional but recommended — raises rate limit from 10 to 30 req/min)
-# Set GITHUB_TOKEN env var on Render/Railway
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
+
+# ── Scanner settings ──────────────────────────────────────────────────────────
+
+# GitHub token (recommended — raises rate limit from 10 to 30 req/min)
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 
-DASHBOARD_PORT = int(os.environ.get("PORT", 8422))
-AUTO_SCAN_INTERVAL_MINUTES = 0  # 0 = disabled
 DAYS_BACK = int(os.environ.get("DAYS_BACK", 7))
 STAR_THRESHOLD = int(os.environ.get("STAR_THRESHOLD", 100))
 MIN_SCORE = int(os.environ.get("MIN_SCORE", 5))
-DB_PATH = os.environ.get("DB_PATH", "lure_monitor.db")
 
 # ── Search queries (shared across all platforms) ─────────────────────────────
 # Consolidated from 27 → 12. Platform search APIs treat spaces as AND,

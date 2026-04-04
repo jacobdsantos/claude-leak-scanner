@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Code Lure Monitor</title>
+    <link rel="stylesheet" href="static/style.css">
+    <style>
+        code, .mono { font-family: var(--font-data); font-size: 12px; }
+        .shimmer {
+            display: inline-block;
+            width: 2ch;
+            background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.4s infinite;
+            border-radius: 3px;
+            color: transparent;
+            user-select: none;
+        }
+        @keyframes shimmer {
+            0%   { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        #errorBanner {
+            display: none;
+            padding: 10px 20px;
+            margin: 8px 16px;
+            background: rgba(255, 45, 74, 0.08);
+            border: 1px solid var(--sig-critical);
+            border-radius: 4px;
+            color: var(--sig-critical);
+            font-size: 13px;
+        }
+        #errorBanner button {
+            margin-left: 12px;
+            background: none;
+            border: 1px solid currentColor;
+            color: inherit;
+            padding: 3px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-family: var(--font-ui);
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+    <h1><span>&#9632;</span> Claude Code Lure Monitor</h1>
+    <div class="header-actions">
+        <span id="lastScanLabel" style="font-size:12px; color: var(--text-secondary);"></span>
+    </div>
+</header>
+
+<!-- Error banner -->
+<div id="errorBanner">
+    <span id="errorText"></span>
+    <button onclick="window._retry()">Retry</button>
+</div>
+
+<!-- Stats Cards -->
+<div class="stats-grid">
+    <div class="stat-card total">
+        <div class="label">Total Findings</div>
+        <div class="value" id="statTotal"><span class="shimmer">00</span></div>
+    </div>
+    <div class="stat-card critical">
+        <div class="label">Critical</div>
+        <div class="value" id="statCritical"><span class="shimmer">0</span></div>
+    </div>
+    <div class="stat-card high">
+        <div class="label">High</div>
+        <div class="value" id="statHigh"><span class="shimmer">0</span></div>
+    </div>
+    <div class="stat-card medium">
+        <div class="label">Medium</div>
+        <div class="value" id="statMedium"><span class="shimmer">0</span></div>
+    </div>
+    <div class="stat-card platforms">
+        <div class="label">Platforms</div>
+        <div class="value" id="statPlatforms"><span class="shimmer">0/5</span></div>
+    </div>
+</div>
+
+<!-- Platform Status Bar -->
+<div class="platform-bar" id="platformBar"></div>
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+    <select id="filterPlatform" onchange="window._applyFilters()">
+        <option value="">All Platforms</option>
+        <option value="github">Github</option>
+        <option value="gitlab">Gitlab</option>
+        <option value="codeberg">Codeberg</option>
+        <option value="bitbucket">Bitbucket</option>
+        <option value="sourceforge">Sourceforge</option>
+    </select>
+    <select id="filterSeverity" onchange="window._applyFilters()">
+        <option value="">All Severities</option>
+        <option value="CRITICAL">Critical</option>
+        <option value="HIGH">High</option>
+        <option value="MEDIUM">Medium</option>
+        <option value="LOW">Low</option>
+    </select>
+    <label>
+        <input type="checkbox" id="filterDismissed" onchange="window._applyFilters()"> Show dismissed
+    </label>
+</div>
+
+<!-- Findings Table -->
+<div class="findings-section">
+    <table class="findings-table" id="findingsTable">
+        <thead>
+            <tr>
+                <th onclick="window._sortTable(0)">Status</th>
+                <th onclick="window._sortTable(1)">Platform</th>
+                <th onclick="window._sortTable(2)">Repository</th>
+                <th onclick="window._sortTable(3)">Score <span class="sort-arrow">&#9660;</span></th>
+                <th onclick="window._sortTable(4)">Severity</th>
+                <th onclick="window._sortTable(5)">Stars</th>
+                <th onclick="window._sortTable(6)">Releases</th>
+            </tr>
+        </thead>
+        <tbody id="findingsBody">
+            <tr>
+                <td colspan="7" style="text-align:center; padding: 40px; color: var(--text-secondary);">
+                    Loading findings...
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Scan History -->
+<div class="scan-history">
+    <h3>Scan History</h3>
+    <ul class="scan-list" id="scanList">
+        <li style="color: var(--text-muted); font-size: 12px;">Loading...</li>
+    </ul>
+</div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+const SUPABASE_URL  = 'https://nsjkrclfmetmjzpnqjjm.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zamtyY2xmbWV0bWp6cG5xamptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyODM2NjcsImV4cCI6MjA5MDg1OTY2N30.s6v8bho59ysk5NJacKAA69jb63qiketZQnT6DaNO1K4';
+const PLATFORMS     = ['github', 'gitlab', 'codeberg', 'bitbucket', 'sourceforge'];
+
+const db = createClient(SUPABASE_URL, SUPABASE_ANON);
+
+// XSS: escape all user-controlled strings before inserting into HTML
+function esc(s) {
+    if (s == null) return '';
+    return String(s)
+        .replace(/&/g,  '&amp;')
+        .replace(/</g,  '&lt;')
+        .replace(/>/g,  '&gt;')
+        .replace(/"/g,  '&quot;')
+        .replace(/'/g,  '&#039;');
+}
+
+let sortDir = -1;
+
+// ── Error banner ──────────────────────────────────────────────────────────────
+function showError(msg) {
+    document.getElementById('errorText').textContent = msg;
+    document.getElementById('errorBanner').style.display = 'block';
+}
+function hideError() {
+    document.getElementById('errorBanner').style.display = 'none';
+}
+
+// ── Fetch ─────────────────────────────────────────────────────────────────────
+async function fetchFindings() {
+    const { data, error } = await db.from('findings').select('*').order('score', { ascending: false });
+    if (error) throw new Error('findings: ' + error.message);
+    return data || [];
+}
+async function fetchScans() {
+    const { data, error } = await db.from('scans').select('*').order('started_at', { ascending: false }).limit(10);
+    if (error) throw new Error('scans: ' + error.message);
+    return data || [];
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function computeStats(findings) {
+    let total = 0, critical = 0, high = 0, medium = 0, low = 0;
+    const platforms = new Set();
+    for (const f of findings) {
+        if (f.dismissed) continue;
+        total++;
+        platforms.add(f.platform);
+        if      (f.severity === 'CRITICAL') critical++;
+        else if (f.severity === 'HIGH')     high++;
+        else if (f.severity === 'MEDIUM')   medium++;
+        else                                low++;
+    }
+    return { total, critical, high, medium, low, platforms: platforms.size };
+}
+function renderStats(s) {
+    document.getElementById('statTotal').textContent     = s.total;
+    document.getElementById('statCritical').textContent  = s.critical;
+    document.getElementById('statHigh').textContent      = s.high;
+    document.getElementById('statMedium').textContent    = s.medium;
+    document.getElementById('statPlatforms').textContent = s.platforms + '/' + PLATFORMS.length;
+}
+
+// ── Platform bar ──────────────────────────────────────────────────────────────
+function renderPlatformBar(findings) {
+    const counts = {};
+    for (const f of findings) {
+        if (!f.dismissed) counts[f.platform] = (counts[f.platform] || 0) + 1;
+    }
+    const bar = document.getElementById('platformBar');
+    const chips = PLATFORMS.map(p => {
+        const count  = counts[p] || 0;
+        const dotCls = count > 0 ? 'dot active' : 'dot';
+        const label  = p.charAt(0).toUpperCase() + p.slice(1);
+        const chip   = document.createElement('div');
+        chip.className = 'platform-chip';
+        chip.id = 'chip-' + p;
+        const dot = document.createElement('span');
+        dot.className = dotCls;
+        dot.id = 'dot-' + p;
+        const nameSp = document.createElement('span');
+        nameSp.textContent = label;
+        const cntSp = document.createElement('span');
+        cntSp.className = 'count';
+        cntSp.id = 'count-' + p;
+        cntSp.textContent = count > 0 ? count : '-';
+        chip.appendChild(dot);
+        chip.appendChild(nameSp);
+        chip.appendChild(cntSp);
+        return chip;
+    });
+    bar.replaceChildren(...chips);
+}
+
+// ── Findings table ────────────────────────────────────────────────────────────
+function buildFindingRows(f, i) {
+    const detailId   = 'details-' + i;
+    const assets     = Array.isArray(f.release_assets)  ? f.release_assets  : [];
+    const suspFiles  = Array.isArray(f.suspicious_files) ? f.suspicious_files : [];
+    const reasons    = Array.isArray(f.reasons)          ? f.reasons          : [];
+    const assetCount = assets.length;
+    const desc       = f.description ? f.description.slice(0, 80) + (f.description.length > 80 ? '...' : '') : '';
+
+    // Main row
+    const tr = document.createElement('tr');
+    tr.className = 'finding-row';
+    tr.dataset.platform  = f.platform  || '';
+    tr.dataset.severity  = f.severity  || '';
+    tr.dataset.dismissed = f.dismissed ? 'true' : 'false';
+    tr.dataset.score     = String(f.score);
+    tr.onclick = () => window._toggleDetails(detailId);
+
+    // td: status (empty like original)
+    tr.appendChild(document.createElement('td'));
+
+    // td: platform badge
+    const tdPlatform = document.createElement('td');
+    const badge = document.createElement('span');
+    badge.className = 'badge-platform ' + (f.platform || '');
+    badge.textContent = f.platform || '';
+    tdPlatform.appendChild(badge);
+    tr.appendChild(tdPlatform);
+
+    // td: repo name + description
+    const tdRepo = document.createElement('td');
+    const link = document.createElement('a');
+    link.href = f.repo_url || '#';
+    link.target = '_blank';
+    link.className = 'repo-link';
+    link.textContent = f.repo_name || '';
+    link.onclick = e => e.stopPropagation();
+    tdRepo.appendChild(link);
+    if (desc) {
+        const br = document.createElement('br');
+        const small = document.createElement('small');
+        small.style.color = 'var(--text-muted)';
+        small.textContent = desc;
+        tdRepo.appendChild(br);
+        tdRepo.appendChild(small);
+    }
+    tr.appendChild(tdRepo);
+
+    // td: score
+    const tdScore = document.createElement('td');
+    tdScore.className = 'mono';
+    tdScore.textContent = String(f.score);
+    tr.appendChild(tdScore);
+
+    // td: severity badge
+    const tdSev = document.createElement('td');
+    const sevBadge = document.createElement('span');
+    sevBadge.className = 'badge badge-' + (f.severity || '').toLowerCase();
+    sevBadge.textContent = f.severity || '';
+    tdSev.appendChild(sevBadge);
+    tr.appendChild(tdSev);
+
+    // td: stars
+    const tdStars = document.createElement('td');
+    tdStars.textContent = String(f.stars ?? 0);
+    tr.appendChild(tdStars);
+
+    // td: release count
+    const tdAssets = document.createElement('td');
+    tdAssets.textContent = assetCount + ' asset' + (assetCount !== 1 ? 's' : '');
+    tr.appendChild(tdAssets);
+
+    // Detail row
+    const trDetail = document.createElement('tr');
+    const tdDetail = document.createElement('td');
+    tdDetail.colSpan = 7;
+    tdDetail.style.cssText = 'padding: 0; border: none;';
+
+    const detailDiv = document.createElement('div');
+    detailDiv.className = 'row-details';
+    detailDiv.id = detailId;
+
+    // Flags
+    const flagsH4 = document.createElement('h4');
+    flagsH4.textContent = 'Flags (' + reasons.length + ')';
+    detailDiv.appendChild(flagsH4);
+    const flagsUl = document.createElement('ul');
+    if (reasons.length === 0) {
+        const li = document.createElement('li');
+        li.style.color = 'var(--text-muted)';
+        li.textContent = 'No flags recorded.';
+        flagsUl.appendChild(li);
+    } else {
+        for (const r of reasons) {
+            const li = document.createElement('li');
+            li.textContent = r;       // textContent — XSS safe
+            flagsUl.appendChild(li);
+        }
+    }
+    detailDiv.appendChild(flagsUl);
+
+    // Release assets sub-table
+    if (assetCount > 0) {
+        const h4 = document.createElement('h4');
+        h4.textContent = 'Release Assets';
+        detailDiv.appendChild(h4);
+        const tbl = document.createElement('table');
+        tbl.className = 'release-table';
+        tbl.innerHTML = '<thead><tr><th>File</th><th>Size</th><th>Downloads</th><th>Tag</th></tr></thead>';
+        const tb = document.createElement('tbody');
+        for (const a of assets) {
+            const row = document.createElement('tr');
+            [a.name, (a.size_mb ?? 0) + ' MB', String(a.download_count ?? 0), a.tag || ''].forEach(val => {
+                const td = document.createElement('td');
+                td.className = 'mono';
+                td.textContent = val;   // textContent — XSS safe
+                row.appendChild(td);
+            });
+            tb.appendChild(row);
+        }
+        tbl.appendChild(tb);
+        detailDiv.appendChild(tbl);
+    }
+
+    // Suspicious files
+    if (suspFiles.length > 0) {
+        const h4 = document.createElement('h4');
+        h4.textContent = 'Suspicious Files';
+        detailDiv.appendChild(h4);
+        const ul = document.createElement('ul');
+        for (const sf of suspFiles) {
+            const li = document.createElement('li');
+            li.className = 'mono';
+            li.textContent = sf;   // textContent — XSS safe
+            ul.appendChild(li);
+        }
+        detailDiv.appendChild(ul);
+    }
+
+    // Owner info
+    const ownerH4 = document.createElement('h4');
+    ownerH4.textContent = 'Owner Info';
+    detailDiv.appendChild(ownerH4);
+    const ownerUl = document.createElement('ul');
+    const loginLi = document.createElement('li');
+    loginLi.textContent = 'Login: ';
+    const loginCode = document.createElement('code');
+    loginCode.textContent = f.owner_login || 'unknown';
+    loginLi.appendChild(loginCode);
+    ownerUl.appendChild(loginLi);
+    if (f.owner_age_days  != null) { const li = document.createElement('li'); li.textContent = 'Account age: ' + f.owner_age_days  + ' days'; ownerUl.appendChild(li); }
+    if (f.owner_pub_repos != null) { const li = document.createElement('li'); li.textContent = 'Public repos: ' + f.owner_pub_repos;            ownerUl.appendChild(li); }
+    detailDiv.appendChild(ownerUl);
+
+    // Dismiss button
+    const dismissBtn = document.createElement('button');
+    dismissBtn.className = 'btn-dismiss';
+    dismissBtn.textContent = 'Dismiss';
+    dismissBtn.onclick = e => { e.stopPropagation(); window._dismiss(f.id, dismissBtn); };
+    detailDiv.appendChild(dismissBtn);
+
+    tdDetail.appendChild(detailDiv);
+    trDetail.appendChild(tdDetail);
+
+    return [tr, trDetail];
+}
+
+function renderFindings(findings) {
+    const tbody = document.getElementById('findingsBody');
+    if (!findings || findings.length === 0) {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 7;
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        const icon = document.createElement('div');
+        icon.className = 'icon';
+        icon.textContent = '\u{1F50D}';
+        const p = document.createElement('p');
+        p.textContent = 'No findings yet. Scans run automatically every 6 hours via GitHub Actions.';
+        empty.appendChild(icon);
+        empty.appendChild(p);
+        td.appendChild(empty);
+        tr.appendChild(td);
+        tbody.replaceChildren(tr);
+        return;
+    }
+    const nodes = [];
+    findings.forEach((f, i) => {
+        const [mainTr, detailTr] = buildFindingRows(f, i);
+        nodes.push(mainTr, detailTr);
+    });
+    tbody.replaceChildren(...nodes);
+}
+
+// ── Scan history ──────────────────────────────────────────────────────────────
+function renderScans(scans) {
+    const list = document.getElementById('scanList');
+    if (!scans || scans.length === 0) {
+        const li = document.createElement('li');
+        li.style.cssText = 'color: var(--text-muted); font-size: 12px;';
+        li.textContent = 'No scans yet.';
+        list.replaceChildren(li);
+        return;
+    }
+    // Update header "Last scan" label
+    const latest = scans[0];
+    if (latest?.started_at) {
+        const dt = new Date(latest.started_at);
+        const label = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                    + ' ' + dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+        document.getElementById('lastScanLabel').textContent = 'Last scan: ' + label;
+    }
+    const items = scans.map(s => {
+        const li       = document.createElement('li');
+        const dt       = s.started_at ? new Date(s.started_at) : null;
+        const label    = dt
+            ? dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                + ' ' + dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+            : 'Unknown';
+        const isFailed = (s.status || '').includes('failed');
+        const dur      = s.duration_seconds != null ? s.duration_seconds.toFixed(1) + 's' : '\u2013';
+        if (isFailed) li.className = 'failed';
+
+        li.textContent = label + ' \u2014 ' + (s.total_found ?? 0) + ' found (';
+        const newSpan = document.createElement('span');
+        newSpan.className = 'new-count';
+        newSpan.textContent = (s.new_found ?? 0) + ' new';
+        li.appendChild(newSpan);
+        li.appendChild(document.createTextNode(') \u2014 '));
+        const durSpan = document.createElement('span');
+        durSpan.className = 'duration';
+        durSpan.textContent = dur;
+        li.appendChild(durSpan);
+        if (isFailed) {
+            const failSpan = document.createElement('span');
+            failSpan.style.color = 'var(--sig-critical)';
+            failSpan.textContent = ' FAILED';
+            li.appendChild(failSpan);
+        }
+        return li;
+    });
+    list.replaceChildren(...items);
+}
+
+// ── Main load ─────────────────────────────────────────────────────────────────
+async function loadDashboard() {
+    hideError();
+    const [findingsResult, scansResult] = await Promise.allSettled([fetchFindings(), fetchScans()]);
+    if (findingsResult.status === 'fulfilled') {
+        const findings = findingsResult.value;
+        renderStats(computeStats(findings));
+        renderPlatformBar(findings);
+        renderFindings(findings);
+    } else {
+        showError('Failed to load findings: ' + findingsResult.reason?.message);
+        const tbody = document.getElementById('findingsBody');
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 7;
+        td.style.cssText = 'text-align:center; padding:40px; color: var(--sig-critical);';
+        td.textContent = 'Failed to load findings. Check console.';
+        tr.appendChild(td);
+        tbody.replaceChildren(tr);
+    }
+    if (scansResult.status === 'fulfilled') {
+        renderScans(scansResult.value);
+    } else {
+        const li = document.createElement('li');
+        li.style.cssText = 'color: var(--sig-critical); font-size: 12px;';
+        li.textContent = 'Failed to load scan history.';
+        document.getElementById('scanList').replaceChildren(li);
+    }
+}
+
+// ── Row expand ────────────────────────────────────────────────────────────────
+window._toggleDetails = function(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('show');
+};
+
+// ── Dismiss ───────────────────────────────────────────────────────────────────
+window._dismiss = async function(id, btn) {
+    const { error } = await db.from('findings').update({ dismissed: true }).eq('id', id);
+    if (error) { alert('Dismiss failed: ' + error.message); return; }
+    const detailTr = btn.closest('.row-details').parentElement.parentElement;
+    const mainTr   = detailTr.previousElementSibling;
+    if (mainTr) { mainTr.dataset.dismissed = 'true'; mainTr.style.display = 'none'; }
+    detailTr.style.display = 'none';
+};
+
+// ── Filters ───────────────────────────────────────────────────────────────────
+window._applyFilters = function() {
+    const platform      = document.getElementById('filterPlatform').value;
+    const severity      = document.getElementById('filterSeverity').value;
+    const showDismissed = document.getElementById('filterDismissed').checked;
+    document.querySelectorAll('.finding-row').forEach(row => {
+        let show = true;
+        if (platform && row.dataset.platform !== platform)         show = false;
+        if (severity && row.dataset.severity !== severity)         show = false;
+        if (!showDismissed && row.dataset.dismissed === 'true')    show = false;
+        row.style.display = show ? '' : 'none';
+        const next = row.nextElementSibling;
+        if (next && !next.classList.contains('finding-row')) next.style.display = show ? '' : 'none';
+    });
+};
+
+// ── Sort ──────────────────────────────────────────────────────────────────────
+window._sortTable = function(col) {
+    const tbody = document.getElementById('findingsBody');
+    if (!tbody) return;
+    const pairs = [];
+    const rows  = Array.from(tbody.children);
+    for (let i = 0; i < rows.length - 1; i += 2) {
+        if (rows[i] && rows[i + 1]) pairs.push([rows[i], rows[i + 1]]);
+    }
+    pairs.sort((a, b) => {
+        const cA = a[0].children[col]?.textContent?.trim() || '';
+        const cB = b[0].children[col]?.textContent?.trim() || '';
+        const nA = parseFloat(cA), nB = parseFloat(cB);
+        if (!isNaN(nA) && !isNaN(nB)) return (nA - nB) * sortDir;
+        return cA.localeCompare(cB) * sortDir;
+    });
+    sortDir *= -1;
+    pairs.forEach(([d, det]) => { tbody.appendChild(d); tbody.appendChild(det); });
+};
+
+// ── Retry ─────────────────────────────────────────────────────────────────────
+window._retry = () => loadDashboard();
+
+// ── Realtime ──────────────────────────────────────────────────────────────────
+db.channel('scan-status')
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'scans' }, payload => {
+        const status = payload.new?.status || '';
+        if (status === 'completed' || status.startsWith('failed')) loadDashboard();
+    })
+    .subscribe();
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+loadDashboard();
+</script>
+
+</body>
+</html>

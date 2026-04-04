@@ -1,0 +1,6 @@
+name = "claude-lure-monitor"
+compatibility_date = "2025-06-01"
+
+[assets]
+directory = "./web/"
+not_found_handling = "404-page"

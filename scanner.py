@@ -9,8 +9,6 @@ import re
 from datetime import datetime, timezone
 from typing import AsyncGenerator, Optional
 
-import aiosqlite
-
 import config
 import db
 from models import (
@@ -371,7 +369,6 @@ async def run_scan(
                     if is_new:
                         new_found += 1
 
-                await database.commit()
                 elapsed = (datetime.now(timezone.utc) - platform_start).total_seconds()
                 logger.info(f"=== {scanner.name} done: {len(results)} findings in {elapsed:.1f}s ===")
 
@@ -411,6 +408,4 @@ async def run_scan(
                 await scanner.close()
             except Exception:
                 pass
-        await database.close()
-
     return total_found, new_found
