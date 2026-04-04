@@ -205,6 +205,18 @@
         .btn-vt:hover { border-color: var(--sig-medium); color: var(--sig-medium); }
         .badge-rule { display: inline-block; padding: 1px 6px; border-radius: 3px; background: var(--accent-dim); color: var(--accent); font-size: 10px; font-family: var(--font-data); font-weight: 500; }
 
+        /* COVERED badge — known IOCs already in TM published research */
+        .badge-covered {
+            display: inline-block; padding: 2px 8px; border-radius: 3px;
+            background: rgba(75,106,138,0.15); color: var(--sig-low);
+            font-size: 10px; font-family: var(--font-ui); font-weight: 700;
+            letter-spacing: 0.08em; text-transform: uppercase;
+            border: 1px solid rgba(75,106,138,0.3);
+        }
+        /* Known IOC rows — dimmed but visible, distinct from new findings */
+        .finding-row[data-platform="vt_known_ioc"] { opacity: 0.55; }
+        .finding-row[data-platform="vt_known_ioc"]:hover { opacity: 0.85; }
+
         /* Shimmer */
         .shimmer { display: inline-block; width: 2ch; background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 3px; color: transparent; user-select: none; }
         @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
@@ -458,6 +470,9 @@
                 <label>
                     <input type="checkbox" id="vtFilterDismissed" onchange="window._applyVtFilters()"> Show dismissed
                 </label>
+                <label>
+                    <input type="checkbox" id="vtHideCovered" onchange="window._applyVtFilters()" checked> Hide covered IOCs
+                </label>
             </div>
 
             <div class="findings-section">
@@ -491,7 +506,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 const SUPABASE_URL  = 'https://nsjkrclfmetmjzpnqjjm.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zamtyY2xmbWV0bWp6cG5xamptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyODM2NjcsImV4cCI6MjA5MDg1OTY2N30.s6v8bho59ysk5NJacKAA69jb63qiketZQnT6DaNO1K4';
 const REPO_PLATFORMS = ['github','gitlab','codeberg','bitbucket','sourceforge'];
-const VT_PLATFORMS   = ['vt_livehunt','vt_retrohunt'];
+const VT_PLATFORMS   = ['vt_livehunt','vt_retrohunt','vt_known_ioc'];
 const SEV_ORDER      = ['CRITICAL','HIGH','MEDIUM','LOW'];
 
 const db = createClient(SUPABASE_URL, SUPABASE_ANON);
@@ -787,10 +802,17 @@ function buildVtRow(f, i) {
     tr.dataset.dismissed=f.dismissed?'true':'false'; tr.dataset.score=String(f.score);
     tr.onclick=()=>window._toggleDetails(detailId);
 
-    // Severity (col 0 — border)
+    // Severity col 0 — COVERED badge for known IOCs, severity badge for live findings
     const tdSev=document.createElement('td');
-    const sb=document.createElement('span'); sb.className='badge badge-'+(f.severity||'').toLowerCase(); sb.textContent=f.severity||'';
-    tdSev.appendChild(sb); tr.appendChild(tdSev);
+    const isKnownIoc = f.platform === 'vt_known_ioc';
+    if (isKnownIoc) {
+        const cb=document.createElement('span'); cb.className='badge-covered'; cb.textContent='COVERED';
+        tdSev.appendChild(cb);
+    } else {
+        const sb=document.createElement('span'); sb.className='badge badge-'+(f.severity||'').toLowerCase(); sb.textContent=f.severity||'';
+        tdSev.appendChild(sb);
+    }
+    tr.appendChild(tdSev);
 
     // Filename
     const tdN=document.createElement('td');
@@ -922,15 +944,17 @@ window._applyFilters = function() {
 };
 
 window._applyVtFilters = function() {
-    const sev=document.getElementById('vtFilterSeverity').value;
-    const showD=document.getElementById('vtFilterDismissed').checked;
+    const sev         = document.getElementById('vtFilterSeverity').value;
+    const showD       = document.getElementById('vtFilterDismissed').checked;
+    const hideCovered = document.getElementById('vtHideCovered')?.checked ?? true;
     document.querySelectorAll('#vtBody .finding-row').forEach(row=>{
-        let show=true;
-        if(sev&&row.dataset.severity!==sev) show=false;
-        if(!showD&&row.dataset.dismissed==='true') show=false;
-        row.style.display=show?'':'none';
-        const next=row.nextElementSibling;
-        if(next&&!next.classList.contains('finding-row')) next.style.display=show?'':'none';
+        let show = true;
+        if (sev         && row.dataset.severity  !== sev)          show = false;
+        if (!showD      && row.dataset.dismissed === 'true')        show = false;
+        if (hideCovered && row.dataset.platform  === 'vt_known_ioc') show = false;
+        row.style.display = show ? '' : 'none';
+        const next = row.nextElementSibling;
+        if (next && !next.classList.contains('finding-row')) next.style.display = show ? '' : 'none';
     });
 };
 
