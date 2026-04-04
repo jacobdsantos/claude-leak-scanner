@@ -52,7 +52,31 @@ class VirusTotalScanner(PlatformScanner):
     ) -> tuple[int, list[str]]:
         """Score a VT file hit. Returns (score, reasons)."""
         score = 0
-        reasons: list[str] = [f"Matched VT hunt rule: {rule_name}"]
+
+        # ── Trend Micro detection name ────────────────────────────────────────
+        analysis_results = attrs.get("last_analysis_results") or {}
+        tm_detection = "—"
+        for tm_key in ("TrendMicro", "TrendMicro-HouseCall", "Trend Micro", "TrendMicro-hippa"):
+            res = analysis_results.get(tm_key, {})
+            if res.get("result"):
+                tm_detection = res["result"]
+                break
+
+        # First submission date formatted for display
+        first_sub_ts = attrs.get("first_submission_date")
+        first_sub_str = (
+            __import__("datetime").datetime.fromtimestamp(
+                first_sub_ts,
+                tz=__import__("datetime").timezone.utc
+            ).strftime("%Y-%m-%d %H:%M UTC")
+            if first_sub_ts else "—"
+        )
+
+        reasons: list[str] = [
+            f"Matched VT hunt rule: {rule_name}",
+            f"TM Detection: {tm_detection}",
+            f"First submitted to VT: {first_sub_str}",
+        ]
 
         # ── AV detection counts ───────────────────────────────────────────────
         stats     = attrs.get("last_analysis_stats", {})

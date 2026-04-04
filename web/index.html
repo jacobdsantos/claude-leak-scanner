@@ -466,15 +466,17 @@
                         <tr>
                             <th onclick="window._sortTable('vt',0)">Severity</th>
                             <th onclick="window._sortTable('vt',1)">Filename</th>
-                            <th onclick="window._sortTable('vt',2)">Score <span class="sort-arrow">&#9660;</span></th>
-                            <th onclick="window._sortTable('vt',3)">Detections</th>
+                            <th>TM Detection</th>
+                            <th onclick="window._sortTable('vt',3)">Score <span class="sort-arrow">&#9660;</span></th>
+                            <th onclick="window._sortTable('vt',4)">Detections</th>
+                            <th>First Seen</th>
                             <th>Hunt Rule</th>
                             <th>SHA256</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="vtBody">
-                        <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-secondary);">Loading VT findings...</td></tr>
+                        <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-secondary);">Loading VT findings...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -797,8 +799,31 @@ function buildVtRow(f, i) {
     if(f.description){ tdN.appendChild(document.createElement('br')); const sm=document.createElement('small'); sm.style.color='var(--text-muted)'; sm.textContent=f.description.slice(0,90); tdN.appendChild(sm); }
     tr.appendChild(tdN);
 
+    // TM Detection — extracted from reasons (prefixed "TM Detection:")
+    const tdTm=document.createElement('td');
+    const tmReason=reasons.find(r=>r.startsWith('TM Detection:'));
+    const tmDet=tmReason?tmReason.replace('TM Detection: ',''):'—';
+    const tmSpan=document.createElement('span');
+    tmSpan.style.cssText='font-family:var(--font-data);font-size:11px;color:'+(tmDet==='—'?'var(--text-ghost)':tmDet.startsWith('HEUR')||tmDet.startsWith('Mal_')?'var(--sig-medium)':'var(--sig-high)');
+    tmSpan.textContent=tmDet;
+    tdTm.appendChild(tmSpan); tr.appendChild(tdTm);
+
     const tdS=document.createElement('td'); tdS.className='mono'; tdS.textContent=String(f.score); tr.appendChild(tdS);
     const tdD=document.createElement('td'); const dm=(f.description||'').match(/(\d+\/\d+ detections)/); tdD.className='mono'; tdD.textContent=dm?dm[1]:'–'; tr.appendChild(tdD);
+
+    // First Seen (VT first submission date, stored in repo_created_at)
+    const tdFs=document.createElement('td');
+    const fsReason=reasons.find(r=>r.startsWith('First submitted'));
+    if(fsReason){
+        tdFs.className='mono'; tdFs.style.fontSize='11px';
+        tdFs.textContent=fsReason.replace('First submitted to VT: ','');
+    } else if(f.repo_created_at){
+        const dt=new Date(f.repo_created_at);
+        tdFs.className='mono'; tdFs.style.fontSize='11px';
+        tdFs.textContent=dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    } else { tdFs.textContent='—'; }
+    tr.appendChild(tdFs);
+
     const tdR=document.createElement('td'); const rb=document.createElement('span'); rb.className='badge-rule'; rb.textContent=f.owner_login||'–'; tdR.appendChild(rb); tr.appendChild(tdR);
     const tdH=document.createElement('td');
     if(sha256){ const wrap=document.createElement('div'); wrap.className='hash-cell'; const hs=document.createElement('span'); hs.textContent=sha256.slice(0,12)+'…'+sha256.slice(-4); hs.title=sha256; const cpBtn=document.createElement('button'); cpBtn.className='copy-btn'; cpBtn.textContent='copy'; cpBtn.onclick=e=>{ e.stopPropagation(); window._copyHash(sha256,cpBtn); }; wrap.append(hs,cpBtn); tdH.appendChild(wrap); } else { tdH.textContent='–'; }
@@ -809,7 +834,7 @@ function buildVtRow(f, i) {
     tdAct.append(vtLink,document.createTextNode(' '),dimBtn); tr.appendChild(tdAct);
 
     const trDet=document.createElement('tr'); const tdDet=document.createElement('td');
-    tdDet.colSpan=7; tdDet.style.cssText='padding:0;border:none;';
+    tdDet.colSpan=9; tdDet.style.cssText='padding:0;border:none;';
     const div=document.createElement('div'); div.className='row-details'; div.id=detailId;
     if(sha256){ const sh=document.createElement('h4'); sh.textContent='SHA256 (full)'; div.appendChild(sh); const pre=document.createElement('pre'); pre.style.cssText='font-size:11px;padding:8px;background:var(--surface-2);border-radius:3px;overflow-x:auto;user-select:all;'; pre.textContent=sha256; div.appendChild(pre); }
     const fh=document.createElement('h4'); fh.textContent='Detection Flags ('+reasons.length+')'; div.appendChild(fh);
@@ -824,7 +849,7 @@ function renderVt(findings) {
     const vtHits=findings.filter(f=>VT_PLATFORMS.includes(f.platform));
     if(!vtHits.length){
         const tr=document.createElement('tr'); const td=document.createElement('td');
-        td.colSpan=7; const em=document.createElement('div'); em.className='empty-state';
+        td.colSpan=9; const em=document.createElement('div'); em.className='empty-state';
         const ic=document.createElement('div'); ic.className='icon'; ic.textContent='\u{1F9EC}';
         const p=document.createElement('p'); p.textContent='No VT file findings yet. VT Livehunt runs every 30 minutes.';
         em.append(ic,p); td.appendChild(em); tr.appendChild(td); tbody.replaceChildren(tr); return;
