@@ -191,7 +191,13 @@ class VirusTotalScanner(PlatformScanner):
                         or attrs.get("ruleset_name")
                         or "unknown_rule"
                     )
-                    sha256 = attrs.get("sha256", "")
+                    # VT puts the file SHA256 in tags[0], not in a dedicated sha256 field
+                    sha256 = attrs.get("sha256") or ""
+                    if not sha256:
+                        for tag in attrs.get("tags", []):
+                            if len(tag) == 64 and all(c in "0123456789abcdefABCDEF" for c in tag):
+                                sha256 = tag.lower()
+                                break
 
                     # Stop when past the lookback window
                     if notif_date and notif_date < since_ts:
