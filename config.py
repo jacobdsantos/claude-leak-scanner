@@ -95,8 +95,17 @@ KNOWN_MD5S = {
     "3388b415610f4ae018d124ea4dc99189",
 }
 
-KNOWN_C2_IPS    = {"147.45.197.92", "94.228.161.88"}
-KNOWN_C2_DOMAINS = {"rti.cargomanbd.com"}
+KNOWN_C2_IPS    = {"147.45.197.92", "94.228.161.88", "45.55.35.48"}
+KNOWN_C2_DOMAINS = {
+    "rti.cargomanbd.com",
+    "steamhostserver.cc",   # NEW — identified from sample c3eede99, not yet in public reports
+}
+
+# Dead-drop resolver domains used by Rust dropper group to fetch payload URLs
+# These are NOT C2 — they host obfuscated download links at runtime
+# snippet.host is the high-confidence signal (not used by legit software)
+# pastebin.com alone has too many FPs; only flag when combined with other signals
+KNOWN_DEAD_DROP_RESOLVERS = {"snippet.host", "pastebin.com"}
 
 # ── Lure keyword patterns (regex, weight, label) ────────────────────────────
 
