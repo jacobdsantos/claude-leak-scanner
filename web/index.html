@@ -428,11 +428,12 @@
                             <th onclick="window._sortTable('repos',2)">Score <span class="sort-arrow">&#9660;</span></th>
                             <th onclick="window._sortTable('repos',3)">Severity</th>
                             <th onclick="window._sortTable('repos',4)">Stars</th>
+                            <th onclick="window._sortTable('repos',5)">Releases</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="reposBody">
-                        <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-secondary);">Loading repositories...</td></tr>
+                        <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-secondary);">Loading repositories...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -689,16 +690,12 @@ function buildRepoRow(f, i) {
     pb.className = 'badge-platform '+(f.platform||''); pb.textContent=f.platform||'';
     tdP.appendChild(pb); tr.appendChild(tdP);
 
-    // Repository + NEW badge + description
+    // Repository + description
     const tdR = document.createElement('td');
     const a   = document.createElement('a');
     a.href=f.repo_url||'#'; a.target='_blank'; a.className='repo-link';
     a.textContent=f.repo_name||''; a.onclick=e=>e.stopPropagation();
     tdR.appendChild(a);
-    if (isNew(f.first_seen)) {
-        const nb=document.createElement('span'); nb.className='badge-new'; nb.textContent='NEW';
-        tdR.appendChild(nb);
-    }
     if (f.description) {
         tdR.appendChild(document.createElement('br'));
         const sm=document.createElement('small'); sm.style.color='var(--text-muted)';
@@ -718,20 +715,21 @@ function buildRepoRow(f, i) {
     // Stars
     const tdSt=document.createElement('td'); tdSt.textContent=String(f.stars??0); tr.appendChild(tdSt);
 
-    // Actions
+    // Releases
+    const tdRel=document.createElement('td');
+    tdRel.textContent=assets.length ? assets.length+' asset'+(assets.length!==1?'s':'') : '–';
+    tr.appendChild(tdRel);
+
+    // Actions — Dismiss only
     const tdAct=document.createElement('td'); tdAct.style.whiteSpace='nowrap';
-    const vtLink=document.createElement('a');
-    vtLink.href='https://www.virustotal.com/gui/search/'+encodeURIComponent(f.repo_url||f.repo_name||'');
-    vtLink.target='_blank'; vtLink.className='btn-vt'; vtLink.title='VirusTotal'; vtLink.textContent='🔍 VT';
-    vtLink.onclick=e=>e.stopPropagation();
     const dimBtn=document.createElement('button'); dimBtn.className='btn-dismiss'; dimBtn.textContent='✕';
     dimBtn.style.cssText='padding:3px 8px;font-size:11px;'; dimBtn.title='Dismiss';
     dimBtn.onclick=e=>{ e.stopPropagation(); window._dismiss(f.id,dimBtn); };
-    tdAct.append(vtLink,document.createTextNode(' '),dimBtn); tr.appendChild(tdAct);
+    tdAct.appendChild(dimBtn); tr.appendChild(tdAct);
 
     // Detail row
     const trDet=document.createElement('tr'); const tdDet=document.createElement('td');
-    tdDet.colSpan=6; tdDet.style.cssText='padding:0;border:none;';
+    tdDet.colSpan=7; tdDet.style.cssText='padding:0;border:none;';
     const div=document.createElement('div'); div.className='row-details'; div.id=detailId;
     const fh=document.createElement('h4'); fh.textContent='Flags ('+reasons.length+')'; div.appendChild(fh);
     const ul=document.createElement('ul');
@@ -766,7 +764,7 @@ function renderRepos(findings) {
     const repos  = findings.filter(f=>REPO_PLATFORMS.includes(f.platform));
     if (!repos.length) {
         const tr=document.createElement('tr'); const td=document.createElement('td');
-        td.colSpan=6; const em=document.createElement('div'); em.className='empty-state';
+        td.colSpan=7; const em=document.createElement('div'); em.className='empty-state';
         const ic=document.createElement('div'); ic.className='icon'; ic.textContent='\u{1F50D}';
         const p=document.createElement('p'); p.textContent='No repository findings yet. Scans run hourly via GitHub Actions.';
         em.append(ic,p); td.appendChild(em); tr.appendChild(td); tbody.replaceChildren(tr); return;
@@ -796,7 +794,6 @@ function buildVtRow(f, i) {
     const tdN=document.createElement('td');
     const a=document.createElement('a'); a.href=f.repo_url||'#'; a.target='_blank'; a.className='repo-link';
     a.textContent=f.repo_name||sha256.slice(0,16)+'…'; a.onclick=e=>e.stopPropagation(); tdN.appendChild(a);
-    if(isNew(f.first_seen)){ const nb=document.createElement('span'); nb.className='badge-new'; nb.textContent='NEW'; tdN.appendChild(nb); }
     if(f.description){ tdN.appendChild(document.createElement('br')); const sm=document.createElement('small'); sm.style.color='var(--text-muted)'; sm.textContent=f.description.slice(0,90); tdN.appendChild(sm); }
     tr.appendChild(tdN);
 
