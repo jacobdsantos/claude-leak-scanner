@@ -900,8 +900,18 @@ function renderVt(findings) {
     const covCount  = document.getElementById('coveredCount');
     const covSec    = document.getElementById('coveredSection');
 
-    const liveHits    = findings.filter(f => VT_PLATFORMS.includes(f.platform) && f.platform !== 'vt_known_ioc');
     const coveredHits = findings.filter(f => f.platform === 'vt_known_ioc');
+
+    // Build a set of SHA256s already covered — livehunt hits matching these are excluded
+    const coveredSha256s = new Set(
+        coveredHits.flatMap(f => Array.isArray(f.suspicious_files) ? f.suspicious_files : [])
+    );
+
+    const liveHits = findings.filter(f => {
+        if (!VT_PLATFORMS.includes(f.platform) || f.platform === 'vt_known_ioc') return false;
+        const sha256 = Array.isArray(f.suspicious_files) ? f.suspicious_files[0] : '';
+        return !coveredSha256s.has(sha256);   // exclude if already covered
+    });
 
     // ── Live findings (top table) ─────────────────────────────────────────────
     if (!liveHits.length) {
