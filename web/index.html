@@ -7,41 +7,91 @@
     <link rel="stylesheet" href="static/style.css">
     <style>
         code, .mono { font-family: var(--font-data); font-size: 12px; }
+
+        /* Shimmer loading */
         .shimmer {
-            display: inline-block;
-            width: 2ch;
+            display: inline-block; width: 2ch;
             background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
             background-size: 200% 100%;
             animation: shimmer 1.4s infinite;
-            border-radius: 3px;
-            color: transparent;
-            user-select: none;
+            border-radius: 3px; color: transparent; user-select: none;
         }
-        @keyframes shimmer {
-            0%   { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
-        }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+        /* Error banner */
         #errorBanner {
-            display: none;
-            padding: 10px 20px;
-            margin: 8px 16px;
-            background: rgba(255, 45, 74, 0.08);
-            border: 1px solid var(--sig-critical);
-            border-radius: 4px;
-            color: var(--sig-critical);
-            font-size: 13px;
+            display: none; padding: 10px 20px; margin: 8px 16px;
+            background: rgba(255,45,74,0.08); border: 1px solid var(--sig-critical);
+            border-radius: 4px; color: var(--sig-critical); font-size: 13px;
         }
         #errorBanner button {
-            margin-left: 12px;
-            background: none;
-            border: 1px solid currentColor;
-            color: inherit;
-            padding: 3px 10px;
-            border-radius: 3px;
-            cursor: pointer;
-            font-family: var(--font-ui);
-            font-size: 12px;
+            margin-left: 12px; background: none; border: 1px solid currentColor;
+            color: inherit; padding: 3px 10px; border-radius: 3px; cursor: pointer;
+            font-family: var(--font-ui); font-size: 12px;
         }
+
+        /* Tab navigation */
+        .tab-nav {
+            display: flex; gap: 2px; padding: 0 16px; margin-bottom: 0;
+            border-bottom: 1px solid var(--edge);
+        }
+        .tab-btn {
+            background: none; border: none; border-bottom: 2px solid transparent;
+            color: var(--text-secondary); font-family: var(--font-ui); font-size: 12px;
+            font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+            padding: 10px 16px; cursor: pointer; margin-bottom: -1px;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .tab-btn:hover { color: var(--text-primary); }
+        .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+        .tab-count {
+            display: inline-flex; align-items: center; justify-content: center;
+            margin-left: 6px; min-width: 20px; height: 16px; padding: 0 5px;
+            background: var(--surface-2); border-radius: 8px;
+            font-size: 10px; font-weight: 700; color: var(--text-secondary);
+        }
+        .tab-btn.active .tab-count { background: var(--accent-dim); color: var(--accent); }
+
+        /* Tab panes */
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
+
+        /* VT-specific table styles */
+        .hash-cell {
+            display: flex; align-items: center; gap: 6px;
+            font-family: var(--font-data); font-size: 11px; color: var(--text-secondary);
+        }
+        .copy-btn {
+            background: none; border: 1px solid var(--edge); color: var(--text-secondary);
+            padding: 1px 6px; border-radius: 3px; cursor: pointer; font-size: 10px;
+            font-family: var(--font-ui); transition: all 0.15s;
+        }
+        .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .copy-btn.copied { border-color: var(--sig-active); color: var(--sig-active); }
+
+        /* VT lookup button inline */
+        .btn-vt {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: none; border: 1px solid var(--edge-bright); color: var(--text-secondary);
+            padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 11px;
+            font-family: var(--font-ui); text-decoration: none; transition: all 0.15s;
+        }
+        .btn-vt:hover { border-color: var(--sig-medium); color: var(--sig-medium); }
+
+        /* Rule name badge */
+        .badge-rule {
+            display: inline-block; padding: 1px 6px; border-radius: 3px;
+            background: var(--accent-dim); color: var(--accent);
+            font-size: 10px; font-family: var(--font-data); font-weight: 500;
+        }
+
+        /* Section header within tab */
+        .section-header {
+            display: flex; align-items: center; gap: 10px;
+            padding: 8px 16px; font-size: 11px; color: var(--text-secondary);
+            border-bottom: 1px solid var(--edge); background: var(--surface-0);
+        }
+        .section-header strong { color: var(--text-primary); font-size: 12px; }
     </style>
 </head>
 <body>
@@ -60,7 +110,7 @@
     <button onclick="window._retry()">Retry</button>
 </div>
 
-<!-- Stats Cards -->
+<!-- Stats Cards — always visible -->
 <div class="stats-grid">
     <div class="stat-card total">
         <div class="label">Total Findings</div>
@@ -80,65 +130,150 @@
     </div>
     <div class="stat-card platforms">
         <div class="label">Platforms</div>
-        <div class="value" id="statPlatforms"><span class="shimmer">0/5</span></div>
+        <div class="value" id="statPlatforms"><span class="shimmer">0/6</span></div>
     </div>
 </div>
 
-<!-- Platform Status Bar -->
+<!-- Platform Status Bar — always visible -->
 <div class="platform-bar" id="platformBar"></div>
 
-<!-- Filter Bar -->
-<div class="filter-bar">
-    <select id="filterPlatform" onchange="window._applyFilters()">
-        <option value="">All Platforms</option>
-        <option value="github">Github</option>
-        <option value="gitlab">Gitlab</option>
-        <option value="codeberg">Codeberg</option>
-        <option value="bitbucket">Bitbucket</option>
-        <option value="sourceforge">Sourceforge</option>
-    </select>
-    <select id="filterSeverity" onchange="window._applyFilters()">
-        <option value="">All Severities</option>
-        <option value="CRITICAL">Critical</option>
-        <option value="HIGH">High</option>
-        <option value="MEDIUM">Medium</option>
-        <option value="LOW">Low</option>
-    </select>
-    <label>
-        <input type="checkbox" id="filterDismissed" onchange="window._applyFilters()"> Show dismissed
-    </label>
+<!-- Tab Navigation -->
+<nav class="tab-nav">
+    <button class="tab-btn active" id="tabBtnRepos" onclick="window._switchTab('repos')">
+        Repositories
+        <span class="tab-count" id="tabCountRepos">–</span>
+    </button>
+    <button class="tab-btn" id="tabBtnVt" onclick="window._switchTab('vt')">
+        VT Files
+        <span class="tab-count" id="tabCountVt">–</span>
+    </button>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════ TAB: REPOS -->
+<div class="tab-pane active" id="tabRepos">
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+        <select id="filterPlatform" onchange="window._applyFilters()">
+            <option value="">All Platforms</option>
+            <option value="github">Github</option>
+            <option value="gitlab">Gitlab</option>
+            <option value="codeberg">Codeberg</option>
+            <option value="bitbucket">Bitbucket</option>
+            <option value="sourceforge">Sourceforge</option>
+        </select>
+        <select id="filterSeverity" onchange="window._applyFilters()">
+            <option value="">All Severities</option>
+            <option value="CRITICAL">Critical</option>
+            <option value="HIGH">High</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="LOW">Low</option>
+        </select>
+        <label>
+            <input type="checkbox" id="filterDismissed" onchange="window._applyFilters()"> Show dismissed
+        </label>
+    </div>
+
+    <!-- Repos Table -->
+    <div class="findings-section">
+        <table class="findings-table" id="reposTable">
+            <thead>
+                <tr>
+                    <th onclick="window._sortTable('repos', 0)">Status</th>
+                    <th onclick="window._sortTable('repos', 1)">Platform</th>
+                    <th onclick="window._sortTable('repos', 2)">Repository</th>
+                    <th onclick="window._sortTable('repos', 3)">Score <span class="sort-arrow">&#9660;</span></th>
+                    <th onclick="window._sortTable('repos', 4)">Severity</th>
+                    <th onclick="window._sortTable('repos', 5)">Stars</th>
+                    <th onclick="window._sortTable('repos', 6)">Releases</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="reposBody">
+                <tr><td colspan="8" style="text-align:center; padding:40px; color:var(--text-secondary);">Loading repositories...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Scan History -->
+    <div class="scan-history">
+        <h3>Scan History</h3>
+        <ul class="scan-list" id="scanList">
+            <li style="color:var(--text-muted); font-size:12px;">Loading...</li>
+        </ul>
+    </div>
 </div>
 
-<!-- Findings Table -->
-<div class="findings-section">
-    <table class="findings-table" id="findingsTable">
-        <thead>
-            <tr>
-                <th onclick="window._sortTable(0)">Status</th>
-                <th onclick="window._sortTable(1)">Platform</th>
-                <th onclick="window._sortTable(2)">Repository</th>
-                <th onclick="window._sortTable(3)">Score <span class="sort-arrow">&#9660;</span></th>
-                <th onclick="window._sortTable(4)">Severity</th>
-                <th onclick="window._sortTable(5)">Stars</th>
-                <th onclick="window._sortTable(6)">Releases</th>
-            </tr>
-        </thead>
-        <tbody id="findingsBody">
-            <tr>
-                <td colspan="7" style="text-align:center; padding: 40px; color: var(--text-secondary);">
-                    Loading findings...
-                </td>
-            </tr>
-        </tbody>
-    </table>
-</div>
+<!-- ══════════════════════════════════════════════════════ TAB: VT FILES -->
+<div class="tab-pane" id="tabVt">
 
-<!-- Scan History -->
-<div class="scan-history">
-    <h3>Scan History</h3>
-    <ul class="scan-list" id="scanList">
-        <li style="color: var(--text-muted); font-size: 12px;">Loading...</li>
-    </ul>
+    <div class="section-header">
+        <strong>VirusTotal Livehunt</strong>
+        <span>Files matching your hunt rules — SHA256 hashes are full-length, click to copy</span>
+    </div>
+
+    <!-- VT Filter Bar -->
+    <div class="filter-bar">
+        <select id="vtFilterSeverity" onchange="window._applyVtFilters()">
+            <option value="">All Severities</option>
+            <option value="CRITICAL">Critical</option>
+            <option value="HIGH">High</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="LOW">Low</option>
+        </select>
+        <label>
+            <input type="checkbox" id="vtFilterDismissed" onchange="window._applyVtFilters()"> Show dismissed
+        </label>
+    </div>
+
+    <!-- VT Files Table -->
+    <div class="findings-section">
+        <table class="findings-table" id="vtTable">
+            <thead>
+                <tr>
+                    <th onclick="window._sortTable('vt', 0)">Severity</th>
+                    <th onclick="window._sortTable('vt', 1)">Filename</th>
+                    <th onclick="window._sortTable('vt', 2)">Score <span class="sort-arrow">&#9660;</span></th>
+                    <th onclick="window._sortTable('vt', 3)">Detections</th>
+                    <th>Hunt Rule</th>
+                    <th>SHA256</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="vtBody">
+                <tr><td colspan="7" style="text-align:center; padding:40px; color:var(--text-secondary);">Loading VT findings...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- VT Setup hint (hidden once findings exist) -->
+    <div id="vtSetupHint" style="display:none; padding: 24px; color: var(--text-secondary); font-size: 13px;">
+        <p><strong style="color:var(--text-primary);">No VT findings yet.</strong>
+        To enable livehunt: create a ruleset named <code>claude_code_lures</code> in your
+        <a href="https://www.virustotal.com/gui/hunting/rulesets" target="_blank" style="color:var(--accent)">VT Intelligence dashboard</a>,
+        add <code>VT_API_KEY</code> and <code>VT_HUNT_RULESET_NAME</code> as GitHub secrets,
+        then trigger the <em>VT Livehunt</em> workflow.</p>
+        <details style="margin-top:12px;">
+            <summary style="cursor:pointer; color:var(--accent);">Sample YARA-X rule</summary>
+            <pre style="margin-top:8px; padding:12px; background:var(--surface-2); border-radius:4px; font-size:11px; overflow-x:auto;">import "vt"
+
+rule ClaudeCodeLure {
+    meta:
+        description = "Claude Code lure — Vidar/GhostSocks dropper"
+        author      = "Trend Micro PH THT"
+    strings:
+        $fn_claude  = "ClaudeCode_x64" nocase wide ascii
+        $fn_trade   = "TradeAI.exe"    nocase wide ascii
+        $fn_openclaw= "openclaudecode" nocase wide ascii
+        $c2_ip1     = "147.45.197.92"
+        $c2_ip2     = "94.228.161.88"
+        $c2_domain  = "rti.cargomanbd.com"
+        $steam_ddrop= "steamcommunity.com/profiles/"
+    condition:
+        any of them and vt.metadata.analysis_stats.malicious &gt; 2
+}</pre>
+        </details>
+    </div>
 </div>
 
 <script type="module">
@@ -146,33 +281,32 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 
 const SUPABASE_URL  = 'https://nsjkrclfmetmjzpnqjjm.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zamtyY2xmbWV0bWp6cG5xamptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyODM2NjcsImV4cCI6MjA5MDg1OTY2N30.s6v8bho59ysk5NJacKAA69jb63qiketZQnT6DaNO1K4';
-const PLATFORMS     = ['github', 'gitlab', 'codeberg', 'bitbucket', 'sourceforge'];
+const REPO_PLATFORMS = ['github', 'gitlab', 'codeberg', 'bitbucket', 'sourceforge'];
+const VT_PLATFORMS   = ['vt_livehunt', 'vt_retrohunt'];
 
 const db = createClient(SUPABASE_URL, SUPABASE_ANON);
 
-// XSS: escape all user-controlled strings before inserting into HTML
-function esc(s) {
-    if (s == null) return '';
-    return String(s)
-        .replace(/&/g,  '&amp;')
-        .replace(/</g,  '&lt;')
-        .replace(/>/g,  '&gt;')
-        .replace(/"/g,  '&quot;')
-        .replace(/'/g,  '&#039;');
-}
+// ── Tab state ─────────────────────────────────────────────────────────────────
+let activeTab  = 'repos';
+let sortDirMap = { repos: -1, vt: -1 };
 
-let sortDir = -1;
+// ── Tab switching ─────────────────────────────────────────────────────────────
+window._switchTab = function(tab) {
+    activeTab = tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    document.getElementById('tabBtn' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+    document.getElementById('tab'    + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+};
 
 // ── Error banner ──────────────────────────────────────────────────────────────
 function showError(msg) {
     document.getElementById('errorText').textContent = msg;
     document.getElementById('errorBanner').style.display = 'block';
 }
-function hideError() {
-    document.getElementById('errorBanner').style.display = 'none';
-}
+function hideError() { document.getElementById('errorBanner').style.display = 'none'; }
 
-// ── Fetch ─────────────────────────────────────────────────────────────────────
+// ── Data fetch ────────────────────────────────────────────────────────────────
 async function fetchFindings() {
     const { data, error } = await db.from('findings').select('*').order('score', { ascending: false });
     if (error) throw new Error('findings: ' + error.message);
@@ -184,14 +318,13 @@ async function fetchScans() {
     return data || [];
 }
 
-// ── Stats ─────────────────────────────────────────────────────────────────────
+// ── Stats (combined) ──────────────────────────────────────────────────────────
 function computeStats(findings) {
     let total = 0, critical = 0, high = 0, medium = 0, low = 0;
     const platforms = new Set();
     for (const f of findings) {
         if (f.dismissed) continue;
-        total++;
-        platforms.add(f.platform);
+        total++; platforms.add(f.platform);
         if      (f.severity === 'CRITICAL') critical++;
         else if (f.severity === 'HIGH')     high++;
         else if (f.severity === 'MEDIUM')   medium++;
@@ -204,279 +337,385 @@ function renderStats(s) {
     document.getElementById('statCritical').textContent  = s.critical;
     document.getElementById('statHigh').textContent      = s.high;
     document.getElementById('statMedium').textContent    = s.medium;
-    document.getElementById('statPlatforms').textContent = s.platforms + '/' + PLATFORMS.length;
+    document.getElementById('statPlatforms').textContent = s.platforms + '/6';
 }
 
-// ── Platform bar ──────────────────────────────────────────────────────────────
+// ── Platform bar (repos only for chip display) ────────────────────────────────
 function renderPlatformBar(findings) {
     const counts = {};
     for (const f of findings) {
-        if (!f.dismissed) counts[f.platform] = (counts[f.platform] || 0) + 1;
+        if (!f.dismissed && REPO_PLATFORMS.includes(f.platform))
+            counts[f.platform] = (counts[f.platform] || 0) + 1;
     }
     const bar = document.getElementById('platformBar');
-    const chips = PLATFORMS.map(p => {
-        const count  = counts[p] || 0;
-        const dotCls = count > 0 ? 'dot active' : 'dot';
-        const label  = p.charAt(0).toUpperCase() + p.slice(1);
-        const chip   = document.createElement('div');
-        chip.className = 'platform-chip';
-        chip.id = 'chip-' + p;
+    const chips = REPO_PLATFORMS.map(p => {
+        const count = counts[p] || 0;
+        const chip  = document.createElement('div');
+        chip.className = 'platform-chip'; chip.id = 'chip-' + p;
         const dot = document.createElement('span');
-        dot.className = dotCls;
-        dot.id = 'dot-' + p;
+        dot.className = count > 0 ? 'dot active' : 'dot'; dot.id = 'dot-' + p;
         const nameSp = document.createElement('span');
-        nameSp.textContent = label;
+        nameSp.textContent = p.charAt(0).toUpperCase() + p.slice(1);
         const cntSp = document.createElement('span');
-        cntSp.className = 'count';
-        cntSp.id = 'count-' + p;
+        cntSp.className = 'count'; cntSp.id = 'count-' + p;
         cntSp.textContent = count > 0 ? count : '-';
-        chip.appendChild(dot);
-        chip.appendChild(nameSp);
-        chip.appendChild(cntSp);
+        chip.appendChild(dot); chip.appendChild(nameSp); chip.appendChild(cntSp);
         return chip;
     });
     bar.replaceChildren(...chips);
 }
 
-// ── Findings table ────────────────────────────────────────────────────────────
-function buildFindingRows(f, i) {
-    const detailId   = 'details-' + i;
-    const assets     = Array.isArray(f.release_assets)  ? f.release_assets  : [];
-    const suspFiles  = Array.isArray(f.suspicious_files) ? f.suspicious_files : [];
-    const reasons    = Array.isArray(f.reasons)          ? f.reasons          : [];
+// ── Tab counts ────────────────────────────────────────────────────────────────
+function updateTabCounts(findings) {
+    const repoCount = findings.filter(f => !f.dismissed && REPO_PLATFORMS.includes(f.platform)).length;
+    const vtCount   = findings.filter(f => !f.dismissed && VT_PLATFORMS.includes(f.platform)).length;
+    document.getElementById('tabCountRepos').textContent = repoCount;
+    document.getElementById('tabCountVt').textContent    = vtCount;
+}
+
+// ── Copy SHA256 ───────────────────────────────────────────────────────────────
+window._copyHash = function(hash, btn) {
+    navigator.clipboard.writeText(hash).then(() => {
+        btn.textContent = 'copied!';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'copy'; btn.classList.remove('copied'); }, 1500);
+    });
+};
+
+// ── Dismiss ───────────────────────────────────────────────────────────────────
+window._dismiss = async function(id, btn) {
+    const { error } = await db.from('findings').update({ dismissed: true }).eq('id', id);
+    if (error) { alert('Dismiss failed: ' + error.message); return; }
+    const detailTr = btn.closest('.row-details')?.parentElement?.parentElement;
+    const mainTr   = detailTr?.previousElementSibling;
+    if (mainTr) { mainTr.dataset.dismissed = 'true'; mainTr.style.display = 'none'; }
+    if (detailTr) detailTr.style.display = 'none';
+};
+
+// ── Row expand ────────────────────────────────────────────────────────────────
+window._toggleDetails = function(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('show');
+};
+
+// ── REPOS: build finding row pair ─────────────────────────────────────────────
+function buildRepoRow(f, i) {
+    const detailId   = 'r-details-' + i;
+    const assets     = Array.isArray(f.release_assets)   ? f.release_assets   : [];
+    const suspFiles  = Array.isArray(f.suspicious_files)  ? f.suspicious_files  : [];
+    const reasons    = Array.isArray(f.reasons)           ? f.reasons           : [];
     const assetCount = assets.length;
-    const desc       = f.description ? f.description.slice(0, 80) + (f.description.length > 80 ? '...' : '') : '';
+    const desc       = f.description ? f.description.slice(0, 80) + (f.description.length > 80 ? '…' : '') : '';
 
     // Main row
     const tr = document.createElement('tr');
     tr.className = 'finding-row';
-    tr.dataset.platform  = f.platform  || '';
-    tr.dataset.severity  = f.severity  || '';
+    tr.dataset.platform  = f.platform || '';
+    tr.dataset.severity  = f.severity || '';
     tr.dataset.dismissed = f.dismissed ? 'true' : 'false';
     tr.dataset.score     = String(f.score);
     tr.onclick = () => window._toggleDetails(detailId);
 
-    // td: status (empty like original)
+    // Status cell (empty)
     tr.appendChild(document.createElement('td'));
 
-    // td: platform badge
-    const tdPlatform = document.createElement('td');
-    const badge = document.createElement('span');
-    badge.className = 'badge-platform ' + (f.platform || '');
-    badge.textContent = f.platform || '';
-    tdPlatform.appendChild(badge);
-    tr.appendChild(tdPlatform);
+    // Platform
+    const tdP = document.createElement('td');
+    const pb  = document.createElement('span');
+    pb.className = 'badge-platform ' + (f.platform || '');
+    pb.textContent = f.platform || '';
+    tdP.appendChild(pb); tr.appendChild(tdP);
 
-    // td: repo name + description
-    const tdRepo = document.createElement('td');
-    const link = document.createElement('a');
-    link.href = f.repo_url || '#';
-    link.target = '_blank';
-    link.className = 'repo-link';
-    link.textContent = f.repo_name || '';
-    link.onclick = e => e.stopPropagation();
-    tdRepo.appendChild(link);
+    // Repo link + desc
+    const tdR = document.createElement('td');
+    const a   = document.createElement('a');
+    a.href = f.repo_url || '#'; a.target = '_blank'; a.className = 'repo-link';
+    a.textContent = f.repo_name || '';
+    a.onclick = e => e.stopPropagation();
+    tdR.appendChild(a);
     if (desc) {
-        const br = document.createElement('br');
-        const small = document.createElement('small');
-        small.style.color = 'var(--text-muted)';
-        small.textContent = desc;
-        tdRepo.appendChild(br);
-        tdRepo.appendChild(small);
+        tdR.appendChild(document.createElement('br'));
+        const sm = document.createElement('small');
+        sm.style.color = 'var(--text-muted)'; sm.textContent = desc;
+        tdR.appendChild(sm);
     }
-    tr.appendChild(tdRepo);
+    tr.appendChild(tdR);
 
-    // td: score
-    const tdScore = document.createElement('td');
-    tdScore.className = 'mono';
-    tdScore.textContent = String(f.score);
-    tr.appendChild(tdScore);
+    // Score
+    const tdS = document.createElement('td');
+    tdS.className = 'mono'; tdS.textContent = String(f.score); tr.appendChild(tdS);
 
-    // td: severity badge
+    // Severity
     const tdSev = document.createElement('td');
-    const sevBadge = document.createElement('span');
-    sevBadge.className = 'badge badge-' + (f.severity || '').toLowerCase();
-    sevBadge.textContent = f.severity || '';
-    tdSev.appendChild(sevBadge);
-    tr.appendChild(tdSev);
+    const sb = document.createElement('span');
+    sb.className = 'badge badge-' + (f.severity || '').toLowerCase();
+    sb.textContent = f.severity || '';
+    tdSev.appendChild(sb); tr.appendChild(tdSev);
 
-    // td: stars
-    const tdStars = document.createElement('td');
-    tdStars.textContent = String(f.stars ?? 0);
-    tr.appendChild(tdStars);
+    // Stars
+    const tdSt = document.createElement('td');
+    tdSt.textContent = String(f.stars ?? 0); tr.appendChild(tdSt);
 
-    // td: release count
-    const tdAssets = document.createElement('td');
-    tdAssets.textContent = assetCount + ' asset' + (assetCount !== 1 ? 's' : '');
-    tr.appendChild(tdAssets);
+    // Releases
+    const tdA = document.createElement('td');
+    tdA.textContent = assetCount + ' asset' + (assetCount !== 1 ? 's' : ''); tr.appendChild(tdA);
+
+    // Actions: VT lookup + dismiss (always visible)
+    const tdAct = document.createElement('td');
+    const vtLink = document.createElement('a');
+    const vtQuery = encodeURIComponent(f.repo_url || f.repo_name || '');
+    vtLink.href = 'https://www.virustotal.com/gui/search/' + vtQuery;
+    vtLink.target = '_blank'; vtLink.className = 'btn-vt'; vtLink.title = 'VirusTotal lookup';
+    vtLink.textContent = '🔍 VT';
+    vtLink.onclick = e => e.stopPropagation();
+    const dimBtn = document.createElement('button');
+    dimBtn.className = 'btn-dismiss'; dimBtn.textContent = '✕';
+    dimBtn.style.cssText = 'padding:3px 8px; font-size:11px;';
+    dimBtn.title = 'Dismiss finding';
+    dimBtn.onclick = e => { e.stopPropagation(); window._dismiss(f.id, dimBtn); };
+    tdAct.style.whiteSpace = 'nowrap';
+    tdAct.appendChild(vtLink);
+    tdAct.appendChild(document.createTextNode(' '));
+    tdAct.appendChild(dimBtn);
+    tr.appendChild(tdAct);
 
     // Detail row
-    const trDetail = document.createElement('tr');
-    const tdDetail = document.createElement('td');
-    tdDetail.colSpan = 7;
-    tdDetail.style.cssText = 'padding: 0; border: none;';
-
-    const detailDiv = document.createElement('div');
-    detailDiv.className = 'row-details';
-    detailDiv.id = detailId;
+    const trDet = document.createElement('tr');
+    const tdDet = document.createElement('td');
+    tdDet.colSpan = 8; tdDet.style.cssText = 'padding:0; border:none;';
+    const div = document.createElement('div');
+    div.className = 'row-details'; div.id = detailId;
 
     // Flags
-    const flagsH4 = document.createElement('h4');
-    flagsH4.textContent = 'Flags (' + reasons.length + ')';
-    detailDiv.appendChild(flagsH4);
-    const flagsUl = document.createElement('ul');
-    if (reasons.length === 0) {
-        const li = document.createElement('li');
-        li.style.color = 'var(--text-muted)';
-        li.textContent = 'No flags recorded.';
-        flagsUl.appendChild(li);
-    } else {
-        for (const r of reasons) {
-            const li = document.createElement('li');
-            li.textContent = r;       // textContent — XSS safe
-            flagsUl.appendChild(li);
-        }
-    }
-    detailDiv.appendChild(flagsUl);
+    const fh = document.createElement('h4'); fh.textContent = 'Flags (' + reasons.length + ')';
+    div.appendChild(fh);
+    const ul = document.createElement('ul');
+    reasons.forEach(r => { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); });
+    if (!reasons.length) { const li = document.createElement('li'); li.style.color = 'var(--text-muted)'; li.textContent = 'No flags.'; ul.appendChild(li); }
+    div.appendChild(ul);
 
-    // Release assets sub-table
+    // Release assets
     if (assetCount > 0) {
-        const h4 = document.createElement('h4');
-        h4.textContent = 'Release Assets';
-        detailDiv.appendChild(h4);
-        const tbl = document.createElement('table');
-        tbl.className = 'release-table';
+        const ah = document.createElement('h4'); ah.textContent = 'Release Assets'; div.appendChild(ah);
+        const tbl = document.createElement('table'); tbl.className = 'release-table';
         tbl.innerHTML = '<thead><tr><th>File</th><th>Size</th><th>Downloads</th><th>Tag</th></tr></thead>';
         const tb = document.createElement('tbody');
-        for (const a of assets) {
+        assets.forEach(a => {
             const row = document.createElement('tr');
-            [a.name, (a.size_mb ?? 0) + ' MB', String(a.download_count ?? 0), a.tag || ''].forEach(val => {
-                const td = document.createElement('td');
-                td.className = 'mono';
-                td.textContent = val;   // textContent — XSS safe
-                row.appendChild(td);
+            [a.name, (a.size_mb ?? 0) + ' MB', String(a.download_count ?? 0), a.tag || ''].forEach(v => {
+                const td = document.createElement('td'); td.className = 'mono'; td.textContent = v; row.appendChild(td);
             });
             tb.appendChild(row);
-        }
-        tbl.appendChild(tb);
-        detailDiv.appendChild(tbl);
+        });
+        tbl.appendChild(tb); div.appendChild(tbl);
     }
 
     // Suspicious files
-    if (suspFiles.length > 0) {
-        const h4 = document.createElement('h4');
-        h4.textContent = 'Suspicious Files';
-        detailDiv.appendChild(h4);
-        const ul = document.createElement('ul');
-        for (const sf of suspFiles) {
-            const li = document.createElement('li');
-            li.className = 'mono';
-            li.textContent = sf;   // textContent — XSS safe
-            ul.appendChild(li);
-        }
-        detailDiv.appendChild(ul);
+    if (suspFiles.length) {
+        const sh = document.createElement('h4'); sh.textContent = 'Suspicious Files'; div.appendChild(sh);
+        const sul = document.createElement('ul');
+        suspFiles.forEach(sf => { const li = document.createElement('li'); li.className = 'mono'; li.textContent = sf; sul.appendChild(li); });
+        div.appendChild(sul);
     }
 
     // Owner info
-    const ownerH4 = document.createElement('h4');
-    ownerH4.textContent = 'Owner Info';
-    detailDiv.appendChild(ownerH4);
-    const ownerUl = document.createElement('ul');
-    const loginLi = document.createElement('li');
-    loginLi.textContent = 'Login: ';
-    const loginCode = document.createElement('code');
-    loginCode.textContent = f.owner_login || 'unknown';
-    loginLi.appendChild(loginCode);
-    ownerUl.appendChild(loginLi);
-    if (f.owner_age_days  != null) { const li = document.createElement('li'); li.textContent = 'Account age: ' + f.owner_age_days  + ' days'; ownerUl.appendChild(li); }
-    if (f.owner_pub_repos != null) { const li = document.createElement('li'); li.textContent = 'Public repos: ' + f.owner_pub_repos;            ownerUl.appendChild(li); }
-    detailDiv.appendChild(ownerUl);
+    const oh = document.createElement('h4'); oh.textContent = 'Owner Info'; div.appendChild(oh);
+    const oul = document.createElement('ul');
+    const oli = document.createElement('li'); oli.textContent = 'Login: ';
+    const oc = document.createElement('code'); oc.textContent = f.owner_login || 'unknown';
+    oli.appendChild(oc); oul.appendChild(oli);
+    if (f.owner_age_days  != null) { const li = document.createElement('li'); li.textContent = 'Account age: ' + f.owner_age_days + ' days'; oul.appendChild(li); }
+    if (f.owner_pub_repos != null) { const li = document.createElement('li'); li.textContent = 'Public repos: ' + f.owner_pub_repos; oul.appendChild(li); }
+    div.appendChild(oul);
 
-    // Dismiss button
-    const dismissBtn = document.createElement('button');
-    dismissBtn.className = 'btn-dismiss';
-    dismissBtn.textContent = 'Dismiss';
-    dismissBtn.onclick = e => { e.stopPropagation(); window._dismiss(f.id, dismissBtn); };
-    detailDiv.appendChild(dismissBtn);
-
-    tdDetail.appendChild(detailDiv);
-    trDetail.appendChild(tdDetail);
-
-    return [tr, trDetail];
+    tdDet.appendChild(div); trDet.appendChild(tdDet);
+    return [tr, trDet];
 }
 
-function renderFindings(findings) {
-    const tbody = document.getElementById('findingsBody');
-    if (!findings || findings.length === 0) {
-        const tr = document.createElement('tr');
-        const td = document.createElement('td');
-        td.colSpan = 7;
-        const empty = document.createElement('div');
-        empty.className = 'empty-state';
-        const icon = document.createElement('div');
-        icon.className = 'icon';
-        icon.textContent = '\u{1F50D}';
-        const p = document.createElement('p');
-        p.textContent = 'No findings yet. Scans run automatically every 6 hours via GitHub Actions.';
-        empty.appendChild(icon);
-        empty.appendChild(p);
-        td.appendChild(empty);
-        tr.appendChild(td);
-        tbody.replaceChildren(tr);
-        return;
+// ── REPOS: render ─────────────────────────────────────────────────────────────
+function renderRepos(findings) {
+    const tbody = document.getElementById('reposBody');
+    const repos  = findings.filter(f => REPO_PLATFORMS.includes(f.platform));
+    if (!repos.length) {
+        const tr = document.createElement('tr'); const td = document.createElement('td');
+        td.colSpan = 8; const em = document.createElement('div'); em.className = 'empty-state';
+        const ic = document.createElement('div'); ic.className = 'icon'; ic.textContent = '\u{1F50D}';
+        const p  = document.createElement('p'); p.textContent = 'No repository findings yet. Scans run every 6h via GitHub Actions.';
+        em.appendChild(ic); em.appendChild(p); td.appendChild(em); tr.appendChild(td);
+        tbody.replaceChildren(tr); return;
     }
     const nodes = [];
-    findings.forEach((f, i) => {
-        const [mainTr, detailTr] = buildFindingRows(f, i);
-        nodes.push(mainTr, detailTr);
-    });
+    repos.forEach((f, i) => { const [m, d] = buildRepoRow(f, i); nodes.push(m, d); });
+    tbody.replaceChildren(...nodes);
+}
+
+// ── VT: build row pair ────────────────────────────────────────────────────────
+function buildVtRow(f, i) {
+    const detailId = 'v-details-' + i;
+    const reasons  = Array.isArray(f.reasons) ? f.reasons : [];
+    const sha256   = (Array.isArray(f.suspicious_files) && f.suspicious_files[0]) || '';
+
+    // Main row
+    const tr = document.createElement('tr');
+    tr.className = 'finding-row';
+    tr.dataset.severity  = f.severity || '';
+    tr.dataset.platform  = f.platform || '';
+    tr.dataset.dismissed = f.dismissed ? 'true' : 'false';
+    tr.dataset.score     = String(f.score);
+    tr.onclick = () => window._toggleDetails(detailId);
+
+    // Severity
+    const tdSev = document.createElement('td');
+    const sb = document.createElement('span');
+    sb.className = 'badge badge-' + (f.severity || '').toLowerCase();
+    sb.textContent = f.severity || '';
+    tdSev.appendChild(sb); tr.appendChild(tdSev);
+
+    // Filename + description
+    const tdN = document.createElement('td');
+    const a   = document.createElement('a');
+    a.href = f.repo_url || '#'; a.target = '_blank'; a.className = 'repo-link';
+    a.textContent = f.repo_name || sha256.slice(0, 16) + '…';
+    a.onclick = e => e.stopPropagation();
+    tdN.appendChild(a);
+    if (f.description) {
+        tdN.appendChild(document.createElement('br'));
+        const sm = document.createElement('small'); sm.style.color = 'var(--text-muted)';
+        sm.textContent = f.description.slice(0, 90); tdN.appendChild(sm);
+    }
+    tr.appendChild(tdN);
+
+    // Score
+    const tdS = document.createElement('td');
+    tdS.className = 'mono'; tdS.textContent = String(f.score); tr.appendChild(tdS);
+
+    // Detections (from description)
+    const tdD = document.createElement('td');
+    const detMatch = (f.description || '').match(/(\d+\/\d+ detections)/);
+    tdD.className = 'mono'; tdD.textContent = detMatch ? detMatch[1] : '–'; tr.appendChild(tdD);
+
+    // Hunt Rule
+    const tdR = document.createElement('td');
+    const rb  = document.createElement('span');
+    rb.className = 'badge-rule'; rb.textContent = f.owner_login || '–';
+    tdR.appendChild(rb); tr.appendChild(tdR);
+
+    // SHA256 with copy button
+    const tdH = document.createElement('td');
+    if (sha256) {
+        const wrap = document.createElement('div'); wrap.className = 'hash-cell';
+        const hashSpan = document.createElement('span');
+        hashSpan.textContent = sha256.slice(0, 12) + '…' + sha256.slice(-4);
+        hashSpan.title = sha256;
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-btn'; copyBtn.textContent = 'copy';
+        copyBtn.onclick = e => { e.stopPropagation(); window._copyHash(sha256, copyBtn); };
+        wrap.appendChild(hashSpan); wrap.appendChild(copyBtn);
+        tdH.appendChild(wrap);
+    } else {
+        tdH.textContent = '–';
+    }
+    tr.appendChild(tdH);
+
+    // Actions: VT link + dismiss
+    const tdAct = document.createElement('td');
+    tdAct.style.whiteSpace = 'nowrap';
+    const vtLink = document.createElement('a');
+    vtLink.href = f.repo_url || '#'; vtLink.target = '_blank'; vtLink.className = 'btn-vt';
+    vtLink.textContent = '↗ VT'; vtLink.onclick = e => e.stopPropagation();
+    const dimBtn = document.createElement('button');
+    dimBtn.className = 'btn-dismiss'; dimBtn.textContent = '✕';
+    dimBtn.style.cssText = 'padding:3px 8px; font-size:11px;'; dimBtn.title = 'Dismiss';
+    dimBtn.onclick = e => { e.stopPropagation(); window._dismiss(f.id, dimBtn); };
+    tdAct.appendChild(vtLink);
+    tdAct.appendChild(document.createTextNode(' '));
+    tdAct.appendChild(dimBtn);
+    tr.appendChild(tdAct);
+
+    // Detail row
+    const trDet = document.createElement('tr');
+    const tdDet = document.createElement('td');
+    tdDet.colSpan = 7; tdDet.style.cssText = 'padding:0; border:none;';
+    const div = document.createElement('div'); div.className = 'row-details'; div.id = detailId;
+
+    // Full SHA256
+    if (sha256) {
+        const sh = document.createElement('h4'); sh.textContent = 'SHA256 (full)'; div.appendChild(sh);
+        const pre = document.createElement('pre');
+        pre.style.cssText = 'font-size:11px; padding:8px; background:var(--surface-2); border-radius:3px; overflow-x:auto; user-select:all;';
+        pre.textContent = sha256; div.appendChild(pre);
+    }
+
+    // Flags
+    const fh = document.createElement('h4'); fh.textContent = 'Detection Flags (' + reasons.length + ')'; div.appendChild(fh);
+    const ul = document.createElement('ul');
+    reasons.forEach(r => { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); });
+    div.appendChild(ul);
+
+    tdDet.appendChild(div); trDet.appendChild(tdDet);
+    return [tr, trDet];
+}
+
+// ── VT: render ────────────────────────────────────────────────────────────────
+function renderVt(findings) {
+    const tbody  = document.getElementById('vtBody');
+    const hint   = document.getElementById('vtSetupHint');
+    const vtHits = findings.filter(f => VT_PLATFORMS.includes(f.platform));
+
+    if (!vtHits.length) {
+        const tr = document.createElement('tr'); const td = document.createElement('td');
+        td.colSpan = 7; const em = document.createElement('div'); em.className = 'empty-state';
+        const ic = document.createElement('div'); ic.className = 'icon'; ic.textContent = '\u{1F9EC}';
+        const p  = document.createElement('p'); p.textContent = 'No VT file findings yet.';
+        em.appendChild(ic); em.appendChild(p); td.appendChild(em); tr.appendChild(td);
+        tbody.replaceChildren(tr);
+        if (hint) hint.style.display = 'block';
+        return;
+    }
+    if (hint) hint.style.display = 'none';
+    const nodes = [];
+    vtHits.forEach((f, i) => { const [m, d] = buildVtRow(f, i); nodes.push(m, d); });
     tbody.replaceChildren(...nodes);
 }
 
 // ── Scan history ──────────────────────────────────────────────────────────────
 function renderScans(scans) {
     const list = document.getElementById('scanList');
-    if (!scans || scans.length === 0) {
-        const li = document.createElement('li');
-        li.style.cssText = 'color: var(--text-muted); font-size: 12px;';
-        li.textContent = 'No scans yet.';
-        list.replaceChildren(li);
-        return;
+    if (!scans || !scans.length) {
+        const li = document.createElement('li'); li.style.cssText = 'color:var(--text-muted);font-size:12px;';
+        li.textContent = 'No scans yet.'; list.replaceChildren(li); return;
     }
-    // Update header "Last scan" label
     const latest = scans[0];
     if (latest?.started_at) {
         const dt = new Date(latest.started_at);
-        const label = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                    + ' ' + dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-        document.getElementById('lastScanLabel').textContent = 'Last scan: ' + label;
+        document.getElementById('lastScanLabel').textContent = 'Last scan: ' +
+            dt.toLocaleDateString('en-US', { month:'short', day:'numeric' }) + ' ' +
+            dt.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:false });
     }
     const items = scans.map(s => {
-        const li       = document.createElement('li');
-        const dt       = s.started_at ? new Date(s.started_at) : null;
-        const label    = dt
-            ? dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                + ' ' + dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+        const li = document.createElement('li');
+        const dt = s.started_at ? new Date(s.started_at) : null;
+        const label = dt
+            ? dt.toLocaleDateString('en-US', {month:'short',day:'numeric'}) + ' ' +
+              dt.toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit',hour12:false})
             : 'Unknown';
         const isFailed = (s.status || '').includes('failed');
-        const dur      = s.duration_seconds != null ? s.duration_seconds.toFixed(1) + 's' : '\u2013';
+        const dur = s.duration_seconds != null ? s.duration_seconds.toFixed(1) + 's' : '–';
         if (isFailed) li.className = 'failed';
-
-        li.textContent = label + ' \u2014 ' + (s.total_found ?? 0) + ' found (';
-        const newSpan = document.createElement('span');
-        newSpan.className = 'new-count';
-        newSpan.textContent = (s.new_found ?? 0) + ' new';
-        li.appendChild(newSpan);
+        li.textContent = label + ' \u2014 ';
+        // Platform tag
+        const plats = Array.isArray(s.platforms) ? s.platforms : [];
+        if (plats.some(p => VT_PLATFORMS.includes(p))) {
+            const vt = document.createElement('span'); vt.className = 'badge-rule';
+            vt.style.marginRight = '4px'; vt.textContent = 'VT'; li.appendChild(vt);
+        }
+        li.appendChild(document.createTextNode((s.total_found ?? 0) + ' found ('));
+        const ns = document.createElement('span'); ns.className = 'new-count';
+        ns.textContent = (s.new_found ?? 0) + ' new'; li.appendChild(ns);
         li.appendChild(document.createTextNode(') \u2014 '));
-        const durSpan = document.createElement('span');
-        durSpan.className = 'duration';
-        durSpan.textContent = dur;
-        li.appendChild(durSpan);
+        const ds = document.createElement('span'); ds.className = 'duration'; ds.textContent = dur; li.appendChild(ds);
         if (isFailed) {
-            const failSpan = document.createElement('span');
-            failSpan.style.color = 'var(--sig-critical)';
-            failSpan.textContent = ' FAILED';
-            li.appendChild(failSpan);
+            const fs = document.createElement('span'); fs.style.color = 'var(--sig-critical)'; fs.textContent = ' FAILED'; li.appendChild(fs);
         }
         return li;
     });
@@ -486,93 +725,78 @@ function renderScans(scans) {
 // ── Main load ─────────────────────────────────────────────────────────────────
 async function loadDashboard() {
     hideError();
-    const [findingsResult, scansResult] = await Promise.allSettled([fetchFindings(), fetchScans()]);
-    if (findingsResult.status === 'fulfilled') {
-        const findings = findingsResult.value;
+    const [fr, sr] = await Promise.allSettled([fetchFindings(), fetchScans()]);
+    if (fr.status === 'fulfilled') {
+        const findings = fr.value;
         renderStats(computeStats(findings));
         renderPlatformBar(findings);
-        renderFindings(findings);
+        updateTabCounts(findings);
+        renderRepos(findings);
+        renderVt(findings);
     } else {
-        showError('Failed to load findings: ' + findingsResult.reason?.message);
-        const tbody = document.getElementById('findingsBody');
-        const tr = document.createElement('tr');
-        const td = document.createElement('td');
-        td.colSpan = 7;
-        td.style.cssText = 'text-align:center; padding:40px; color: var(--sig-critical);';
-        td.textContent = 'Failed to load findings. Check console.';
-        tr.appendChild(td);
-        tbody.replaceChildren(tr);
+        showError('Failed to load findings: ' + fr.reason?.message);
     }
-    if (scansResult.status === 'fulfilled') {
-        renderScans(scansResult.value);
-    } else {
-        const li = document.createElement('li');
-        li.style.cssText = 'color: var(--sig-critical); font-size: 12px;';
-        li.textContent = 'Failed to load scan history.';
-        document.getElementById('scanList').replaceChildren(li);
-    }
+    if (sr.status === 'fulfilled') renderScans(sr.value);
 }
 
-// ── Row expand ────────────────────────────────────────────────────────────────
-window._toggleDetails = function(id) {
-    const el = document.getElementById(id);
-    if (el) el.classList.toggle('show');
-};
-
-// ── Dismiss ───────────────────────────────────────────────────────────────────
-window._dismiss = async function(id, btn) {
-    const { error } = await db.from('findings').update({ dismissed: true }).eq('id', id);
-    if (error) { alert('Dismiss failed: ' + error.message); return; }
-    const detailTr = btn.closest('.row-details').parentElement.parentElement;
-    const mainTr   = detailTr.previousElementSibling;
-    if (mainTr) { mainTr.dataset.dismissed = 'true'; mainTr.style.display = 'none'; }
-    detailTr.style.display = 'none';
-};
-
-// ── Filters ───────────────────────────────────────────────────────────────────
+// ── Repos: filters ────────────────────────────────────────────────────────────
 window._applyFilters = function() {
-    const platform      = document.getElementById('filterPlatform').value;
-    const severity      = document.getElementById('filterSeverity').value;
-    const showDismissed = document.getElementById('filterDismissed').checked;
-    document.querySelectorAll('.finding-row').forEach(row => {
+    const plat  = document.getElementById('filterPlatform').value;
+    const sev   = document.getElementById('filterSeverity').value;
+    const showD = document.getElementById('filterDismissed').checked;
+    document.querySelectorAll('#reposBody .finding-row').forEach(row => {
         let show = true;
-        if (platform && row.dataset.platform !== platform)         show = false;
-        if (severity && row.dataset.severity !== severity)         show = false;
-        if (!showDismissed && row.dataset.dismissed === 'true')    show = false;
+        if (plat  && row.dataset.platform  !== plat)     show = false;
+        if (sev   && row.dataset.severity  !== sev)      show = false;
+        if (!showD && row.dataset.dismissed === 'true')  show = false;
         row.style.display = show ? '' : 'none';
         const next = row.nextElementSibling;
         if (next && !next.classList.contains('finding-row')) next.style.display = show ? '' : 'none';
     });
 };
 
-// ── Sort ──────────────────────────────────────────────────────────────────────
-window._sortTable = function(col) {
-    const tbody = document.getElementById('findingsBody');
+// ── VT: filters ───────────────────────────────────────────────────────────────
+window._applyVtFilters = function() {
+    const sev   = document.getElementById('vtFilterSeverity').value;
+    const showD = document.getElementById('vtFilterDismissed').checked;
+    document.querySelectorAll('#vtBody .finding-row').forEach(row => {
+        let show = true;
+        if (sev  && row.dataset.severity  !== sev)       show = false;
+        if (!showD && row.dataset.dismissed === 'true')  show = false;
+        row.style.display = show ? '' : 'none';
+        const next = row.nextElementSibling;
+        if (next && !next.classList.contains('finding-row')) next.style.display = show ? '' : 'none';
+    });
+};
+
+// ── Sort (per-table) ──────────────────────────────────────────────────────────
+window._sortTable = function(tableKey, col) {
+    const bodyId = tableKey === 'repos' ? 'reposBody' : 'vtBody';
+    const tbody  = document.getElementById(bodyId);
     if (!tbody) return;
-    const pairs = [];
-    const rows  = Array.from(tbody.children);
-    for (let i = 0; i < rows.length - 1; i += 2) {
-        if (rows[i] && rows[i + 1]) pairs.push([rows[i], rows[i + 1]]);
-    }
+    const pairs = [], rows = Array.from(tbody.children);
+    for (let i = 0; i < rows.length - 1; i += 2)
+        if (rows[i] && rows[i+1]) pairs.push([rows[i], rows[i+1]]);
+    const dir = sortDirMap[tableKey];
     pairs.sort((a, b) => {
         const cA = a[0].children[col]?.textContent?.trim() || '';
         const cB = b[0].children[col]?.textContent?.trim() || '';
         const nA = parseFloat(cA), nB = parseFloat(cB);
-        if (!isNaN(nA) && !isNaN(nB)) return (nA - nB) * sortDir;
-        return cA.localeCompare(cB) * sortDir;
+        if (!isNaN(nA) && !isNaN(nB)) return (nA - nB) * dir;
+        return cA.localeCompare(cB) * dir;
     });
-    sortDir *= -1;
-    pairs.forEach(([d, det]) => { tbody.appendChild(d); tbody.appendChild(det); });
+    sortDirMap[tableKey] *= -1;
+    pairs.forEach(([d, dt]) => { tbody.appendChild(d); tbody.appendChild(dt); });
 };
 
 // ── Retry ─────────────────────────────────────────────────────────────────────
 window._retry = () => loadDashboard();
 
-// ── Realtime ──────────────────────────────────────────────────────────────────
+// ── Realtime: watch scans for completion ──────────────────────────────────────
 db.channel('scan-status')
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'scans' }, payload => {
-        const status = payload.new?.status || '';
-        if (status === 'completed' || status.startsWith('failed')) loadDashboard();
+        const s = payload.new?.status || '';
+        if (s === 'completed' || s.startsWith('failed')) loadDashboard();
     })
     .subscribe();
 

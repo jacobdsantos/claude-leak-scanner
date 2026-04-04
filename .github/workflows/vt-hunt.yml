@@ -1,0 +1,44 @@
+name: VT Livehunt
+
+on:
+  schedule:
+    - cron: '30 */6 * * *'   # Every 6h, offset by 30m from repo scanner
+  workflow_dispatch:
+    inputs:
+      days_back:
+        description: 'Days of notifications to look back'
+        required: false
+        default: '7'
+
+concurrency:
+  group: vt-hunt-run
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  vt-hunt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run VT livehunt
+        env:
+          VT_API_KEY: ${{ secrets.VT_API_KEY }}
+          VT_HUNT_RULESET_NAME: ${{ secrets.VT_HUNT_RULESET_NAME }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          DAYS_BACK: ${{ github.event.inputs.days_back || '7' }}
+          MIN_SCORE: '5'
+        run: python run_vt_hunt.py

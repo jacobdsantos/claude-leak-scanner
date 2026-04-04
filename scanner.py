@@ -171,6 +171,29 @@ def score_repo(
         score += 20
         reasons.append("Repo name contains 'crack' + 'claude'")
 
+    # ── TradeAI rotating campaign ─────────────────────────────────────────────
+    if "tradeai" in name_lower or "tradeai" in candidate.description.lower():
+        score += 50
+        reasons.append("KNOWN DROPPER CAMPAIGN: TradeAI nofilabs (25+ brand rotating lure, Vidar+GhostSocks)")
+
+    if "openclaw" in name_lower:
+        score += 30
+        reasons.append("Known precursor campaign: OpenClaw (Feb 2026, same threat actor, same payload)")
+
+    # ── High-star suspicious patterns (fake/bought star signals) ─────────────
+    # High stars on a lure repo = social proof attack — score these higher, not lower.
+    if candidate.stars >= 100:
+        if owner_age_days is not None and owner_age_days < 90:
+            score += 20
+            reasons.append(
+                f"Suspicious star velocity: {candidate.stars} stars on {owner_age_days}d-old account (likely bought)"
+            )
+        elif owner_pub_repos is not None and owner_pub_repos <= 2:
+            score += 15
+            reasons.append(
+                f"Concentrated credibility: {candidate.stars} stars with only {owner_pub_repos} public repo(s)"
+            )
+
     return min(score, 100), reasons
 
 
@@ -195,13 +218,23 @@ async def scan_platform(
 
     logger.info(f"[{platform}] Search returned {len(candidates)} raw candidates")
 
-    # Filter high-star repos (keep known IOCs)
+    # High-star lures are MORE dangerous — more victims will trust and download them.
+    # Include them if they have any Claude/campaign relevance. Fake-star patterns
+    # are caught by score_repo() bonuses instead of a hard filter here.
+    _LURE_KWS = {"claude", "anthropic", "claw", "tradeai", "openclaw", "claudecode"}
     filtered = []
     for c in candidates:
-        if c.stars >= star_threshold:
-            if c.repo_name not in config.KNOWN_MALICIOUS_REPOS and c.owner_login not in config.KNOWN_MALICIOUS_ACCOUNTS:
-                continue
-        filtered.append(c)
+        if c.stars < star_threshold:
+            filtered.append(c)
+            continue
+        # Always include known malicious regardless of stars
+        if c.repo_name in config.KNOWN_MALICIOUS_REPOS or c.owner_login in config.KNOWN_MALICIOUS_ACCOUNTS:
+            filtered.append(c)
+            continue
+        # Include high-star repos only if name/description has lure relevance
+        combined = (c.repo_name + " " + c.description).lower()
+        if any(kw in combined for kw in _LURE_KWS):
+            filtered.append(c)
 
     logger.info(f"[{platform}] After star filter: {len(filtered)} candidates (threshold: {star_threshold})")
 
@@ -237,6 +270,13 @@ async def scan_platform(
             quick_score += 20
         if candidate.stars == 0:
             quick_score += 5
+        if "tradeai" in name_lower or "tradeai" in desc_lower:
+            quick_score += 30  # Known dropper campaign label
+        if "openclaw" in name_lower or "openclaw" in desc_lower:
+            quick_score += 25  # Known precursor campaign, same TA
+        if ("unlock" in name_lower or "keygen" in name_lower or "activat" in name_lower) and \
+                ("claude" in name_lower or "anthropic" in name_lower):
+            quick_score += 15
         if any(kw in desc_lower for kw in ["leaked", "source code", "source map", "anthropic"]):
             quick_score += 10
         if any(kw in name_lower for kw in ["leaked", "leak", "source", "claude", "anthropic", "claw"]):
@@ -408,4 +448,65 @@ async def run_scan(
                 await scanner.close()
             except Exception:
                 pass
+    return total_found, new_found
+
+
+# ── VT Livehunt scan (separate entrypoint) ────────────────────────────────────
+
+async def run_vt_scan(
+    days_back: int = config.DAYS_BACK,
+) -> tuple[int, int]:
+    """Run a VirusTotal livehunt scan. Returns (total_found, new_found).
+
+    Called from run_vt_hunt.py via a dedicated GitHub Actions workflow.
+    Writes findings to the same Supabase table as run_scan(), using
+    platform='vt_livehunt'.
+    """
+    from platforms.virustotal import VirusTotalScanner
+
+    database = await db.get_db()
+    scan = ScanRecord(
+        started_at=datetime.now(timezone.utc),
+        platforms=["vt_livehunt"],
+        status="running",
+    )
+    scan_id = await db.insert_scan(database, scan)
+
+    vt = VirusTotalScanner()
+    total_found = new_found = 0
+
+    try:
+        logger.info("=== Starting VT Livehunt scan ===")
+        await vt.search([], days_back)  # populates vt._scored_findings
+
+        for finding in vt._scored_findings:
+            is_new = await db.upsert_finding(database, finding)
+            total_found += 1
+            if is_new:
+                new_found += 1
+            logger.info(
+                f"[vt_livehunt] {'NEW' if is_new else 'UPD'} "
+                f"{finding.repo_name} | score={finding.score} | {finding.severity}"
+            )
+
+        completed_at = datetime.now(timezone.utc)
+        duration = (completed_at - scan.started_at).total_seconds()
+        await db.update_scan(
+            database, scan_id,
+            completed_at=completed_at,
+            total_found=total_found,
+            new_found=new_found,
+            duration_seconds=round(duration, 1),
+            platforms=["vt_livehunt"],
+            status="completed",
+        )
+        logger.info(f"=== VT scan done: {total_found} findings ({new_found} new) in {duration:.1f}s ===")
+
+    except Exception as e:
+        logger.error(f"=== VT scan FAILED: {e} ===", exc_info=True)
+        await db.update_scan(database, scan_id, status=f"failed: {e}")
+        raise
+    finally:
+        await vt.close()
+
     return total_found, new_found

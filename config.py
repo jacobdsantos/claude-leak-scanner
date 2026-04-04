@@ -10,41 +10,71 @@ ENABLED_PLATFORMS = os.environ.get(
 
 # ── Supabase ──────────────────────────────────────────────────────────────────
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_URL         = os.environ.get("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
+
+# ── VirusTotal ────────────────────────────────────────────────────────────────
+
+VT_API_KEY           = os.environ.get("VT_API_KEY", "")
+# Name of the VT Livehunt ruleset to poll (set in VT dashboard).
+# Leave empty to fetch ALL hunting notifications (any ruleset).
+VT_HUNT_RULESET_NAME = os.environ.get("VT_HUNT_RULESET_NAME", "claude_code_lures")
 
 # ── Scanner settings ──────────────────────────────────────────────────────────
 
-# GitHub token (recommended — raises rate limit from 10 to 30 req/min)
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+GITHUB_TOKEN    = os.environ.get("GITHUB_TOKEN", "")
+DAYS_BACK       = int(os.environ.get("DAYS_BACK", 7))
+STAR_THRESHOLD  = int(os.environ.get("STAR_THRESHOLD", 100))
+MIN_SCORE       = int(os.environ.get("MIN_SCORE", 5))
 
-DAYS_BACK = int(os.environ.get("DAYS_BACK", 7))
-STAR_THRESHOLD = int(os.environ.get("STAR_THRESHOLD", 100))
-MIN_SCORE = int(os.environ.get("MIN_SCORE", 5))
-
-# ── Search queries (shared across all platforms) ─────────────────────────────
-# Consolidated from 27 → 12. Platform search APIs treat spaces as AND,
-# so "claude leaked" already covers "claude code leaked", "claude source leaked", etc.
+# ── Search queries ────────────────────────────────────────────────────────────
+# Expanded from 12 → 22 based on campaign research.
+# Platform search APIs treat spaces as AND, so "claude leaked" covers
+# "claude code leaked", "claude source leaked", etc.
+#
+# Research sources:
+#   - Trend Micro: TradeAI rotating-lure campaign (25+ brands, same Rust dropper)
+#   - Huntress: OpenClaw precursor campaign (Feb 2026, same threat actor)
+#   - Zscaler: Known IOC repos idbzoomh/my3jie
 
 SEARCH_QUERIES = [
-    # Core leak variants (covers: claude code leaked, source leaked, leak, exposed)
+    # Core leak variants
     "claude leaked",
     "claude code source",
     "claude sourcemap",
+    "claude-code-leaked",
+
     # Anthropic-branded lures
     "anthropic leaked",
     "anthropic source code",
+
     # Obfuscated / evasion variants
     "claw code",
     "claude harness decoded",
-    # Malware lure patterns
+
+    # Cracked / unlock / bypass claims (common lure copy)
     "claude cracked",
     "claude enterprise unlock",
-    "ClaudeCode_x64",
-    # Research / RE repos (part of the lure ecosystem)
+    "claude unlock",
+    "claude activator",
+    "claude keygen",
+    "claude bypass",
+
+    # Free access claims
+    "claude code free",
+    "claude pro free",
+
+    # Install / setup executable lures
+    "ClaudeCode_x64",           # exact known malware binary name
+    "claude code setup",
+    "claude code installer",
+
+    # Known campaign identifiers
+    "TradeAI nofilabs",         # dropper label across all 25+ brand variants
+    "openclaw",                 # Feb 2026 precursor campaign, same TA + payload
+
+    # Research / RE repos
     "claude code reverse engineer",
-    # Hyphenated repo names (common on GitHub)
-    "claude-code-leaked",
 ]
 
 # ── Known IOCs (Zscaler ThreatLabz) ─────────────────────────────────────────
@@ -65,22 +95,23 @@ KNOWN_MD5S = {
     "3388b415610f4ae018d124ea4dc99189",
 }
 
-KNOWN_C2_IPS = {"147.45.197.92", "94.228.161.88"}
+KNOWN_C2_IPS    = {"147.45.197.92", "94.228.161.88"}
 KNOWN_C2_DOMAINS = {"rti.cargomanbd.com"}
 
 # ── Lure keyword patterns (regex, weight, label) ────────────────────────────
 
 LURE_PATTERNS = [
-    (r"leaked?\s*(source\s*)?code", 25, "leaked source code"),
+    (r"leaked?\s*(source\s*)?code",                  25, "leaked source code"),
     (r"enterprise\s*(features?\s*)?(unlock|enabl|activat)", 20, "enterprise unlock"),
-    (r"no\s*(message\s*)?limit", 20, "no limits claim"),
-    (r"full\s*source\s*(map|code)", 15, "full source reference"),
-    (r"download\s*(zip|7z|archive)", 15, "download archive CTA"),
-    (r"crack(ed|ing)?", 15, "cracked claim"),
-    (r"free\s*(premium|enterprise|pro)", 15, "free premium claim"),
-    (r"source\s*map\s*(leak|expos|extract)", 15, "source map leak"),
-    (r"anthropic.*internal", 10, "anthropic internal claim"),
-    (r"bypass\s*(rate|limit|auth)", 10, "bypass claim"),
+    (r"no\s*(message\s*)?limit",                     20, "no limits claim"),
+    (r"full\s*source\s*(map|code)",                  15, "full source reference"),
+    (r"download\s*(zip|7z|archive)",                 15, "download archive CTA"),
+    (r"crack(ed|ing)?",                              15, "cracked claim"),
+    (r"free\s*(premium|enterprise|pro)",             15, "free premium claim"),
+    (r"source\s*map\s*(leak|expos|extract)",         15, "source map leak"),
+    (r"anthropic.*internal",                         10, "anthropic internal claim"),
+    (r"bypass\s*(rate|limit|auth)",                  10, "bypass claim"),
+    (r"TradeAI",                                     50, "KNOWN DROPPER: TradeAI nofilabs campaign"),
 ]
 
 # ── Suspicious file patterns ─────────────────────────────────────────────────
@@ -92,6 +123,7 @@ SUSPICIOUS_FILE_EXTENSIONS = {
 SUSPICIOUS_FILE_NAMES = {
     "claudecode_x64.exe", "claudecode.exe", "claude_code.exe",
     "setup.exe", "install.exe", "openclaudecode.exe",
+    "tradeai.exe",      # rotating campaign dropper
 }
 
 RELEASE_ARCHIVE_EXTENSIONS = {
