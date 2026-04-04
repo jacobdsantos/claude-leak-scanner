@@ -64,6 +64,7 @@ rule GhostSocks_GoLang_SOCKS5_Proxy {
             ($gs_core and $gs_manip) or                       // SpyCloud binary sigs
             $api_reject or                                     // network detection sig
             ($go_socks5 and $go_yamux) or                     // Golang SOCKS5 libs
+            $relay or                                          // dynamic C2 response field
             2 of ($cfg_affiliate, $cfg_version, $cfg_proxy_u, $cfg_proxy_p)
         )
         and vt.metadata.analysis_stats.malicious > 1
@@ -120,6 +121,10 @@ rule Vidar_v18_Infostealer_Payload {
             (
                 any of ($exodus, $electrum)
                 and any of ($c2_tg, $c2_steam, $c2_ip1, $c2_ip2)
+            ) or
+            (
+                $vidar_str                                 // "Vidar" version/debug string
+                and any of ($c2_tg, $c2_steam, $c2_ip1, $c2_ip2)
             )
         )
         and vt.metadata.analysis_stats.malicious > 2
@@ -166,6 +171,7 @@ rule TradeAI_Campaign_IOC_Any {
         and (
             any of ($c2_ip*) or
             any of ($c2_dom*) or
+            $ddr or
             $log or
             $packer or
             any of ($fn*)

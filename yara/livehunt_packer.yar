@@ -67,6 +67,7 @@ rule TradeAI_StealthPacker_GhostSocks {
             (2 of ($fw_out_57001, $fw_in_57002, $fw_out_57002, $fw_in_57001)) or
             ($fw_prefix and any of ($c2_known_dom, $c2_known_ip1, $c2_known_ip2, $c2_new)) or
             $c2_new or                                         // new C2 = high confidence
+            $task_svc or                                       // SvcRestartTask persistence
             ($userinit and any of ($drop_svchost, $drop_update))
         )
         and vt.metadata.analysis_stats.malicious > 1
@@ -117,9 +118,9 @@ rule TradeAI_PackedLoader_Vidar_Container {
             // Packed form — detect by PE structure (.fptable + huge .rsrc)
             (
                 pe.section_index(".fptable") >= 0
-                and for any i in (0..pe.number_of_sections - 1): (
-                    pe.sections[i].name == ".rsrc"
-                    and pe.sections[i].virtual_size > 1000000
+                and for any section in pe.sections : (
+                    section.name == ".rsrc"
+                    and section.virtual_size > 1000000
                 )
             )
             or

@@ -29,7 +29,6 @@ rule TradeAI_Rust_Dropper_DeadDrop {
 
     strings:
         $ddr_snippet  = "snippet.host"  ascii wide   // dead-drop; not used by legit software
-        $ddr_pastebin = "pastebin.com"  ascii wide   // secondary dead-drop
 
         $log_upd  = "upd152b_log.txt"  ascii wide   // campaign-unique log, seen across all samples
         $log_sys  = "system_log.txt"   ascii wide
@@ -92,6 +91,7 @@ rule TradeAI_Rust_Dropper_Broad {
         and $ddr_pastebin
         and (
             $log_upd or
+            $log_sys or
             2 of ($mask_*) or
             1 of ($task_*) or
             $reg_persist
