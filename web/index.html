@@ -470,9 +470,6 @@
                 <label>
                     <input type="checkbox" id="vtFilterDismissed" onchange="window._applyVtFilters()"> Show dismissed
                 </label>
-                <label>
-                    <input type="checkbox" id="vtHideCovered" onchange="window._applyVtFilters()" checked> Hide covered IOCs
-                </label>
             </div>
 
             <div class="findings-section">
@@ -494,6 +491,37 @@
                         <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-secondary);">Loading VT findings...</td></tr>
                     </tbody>
                 </table>
+            </div>
+
+            <!-- Covered IOCs — collapsible, below new findings -->
+            <div id="coveredSection" style="margin-top:8px;border-top:1px solid var(--edge);">
+                <div id="coveredHeader" onclick="window._toggleCovered()"
+                     style="display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;user-select:none;color:var(--text-secondary);font-family:var(--font-ui);font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;">
+                    <span style="color:var(--sig-low);">&#9632;</span>
+                    COVERED IOCs — Published in TM Research
+                    <span id="coveredCount" style="background:var(--surface-2);padding:1px 8px;border-radius:10px;font-family:var(--font-data);">0</span>
+                    <span id="coveredChevron" style="margin-left:auto;font-size:10px;">▶</span>
+                </div>
+                <div id="coveredBody" style="display:none;">
+                    <table class="findings-table" id="coveredTable">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Filename</th>
+                                <th>TM Detection</th>
+                                <th>Score</th>
+                                <th>Detections</th>
+                                <th>First Seen</th>
+                                <th>Category</th>
+                                <th>SHA256</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="coveredBody_table">
+                            <tr><td colspan="9" style="text-align:center;padding:20px;color:var(--text-secondary);">Loading covered IOCs...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -865,20 +893,45 @@ function buildVtRow(f, i) {
     return [tr, trDet];
 }
 
-// ── Render VT ─────────────────────────────────────────────────────────────────
+// ── Render VT — splits live findings from covered IOCs ────────────────────────
 function renderVt(findings) {
-    const tbody=document.getElementById('vtBody');
-    const vtHits=findings.filter(f=>VT_PLATFORMS.includes(f.platform));
-    if(!vtHits.length){
+    const tbody     = document.getElementById('vtBody');
+    const covBody   = document.getElementById('coveredBody_table');
+    const covCount  = document.getElementById('coveredCount');
+    const covSec    = document.getElementById('coveredSection');
+
+    const liveHits    = findings.filter(f => VT_PLATFORMS.includes(f.platform) && f.platform !== 'vt_known_ioc');
+    const coveredHits = findings.filter(f => f.platform === 'vt_known_ioc');
+
+    // ── Live findings (top table) ─────────────────────────────────────────────
+    if (!liveHits.length) {
         const tr=document.createElement('tr'); const td=document.createElement('td');
         td.colSpan=9; const em=document.createElement('div'); em.className='empty-state';
         const ic=document.createElement('div'); ic.className='icon'; ic.textContent='\u{1F9EC}';
-        const p=document.createElement('p'); p.textContent='No VT file findings yet. VT Livehunt runs every 30 minutes.';
-        em.append(ic,p); td.appendChild(em); tr.appendChild(td); tbody.replaceChildren(tr); return;
+        const p=document.createElement('p'); p.textContent='No new VT file findings yet. VT Livehunt runs every 30 minutes.';
+        em.append(ic,p); td.appendChild(em); tr.appendChild(td); tbody.replaceChildren(tr);
+    } else {
+        const nodes=[]; liveHits.forEach((f,i)=>{ const[m,d]=buildVtRow(f,i); nodes.push(m,d); });
+        tbody.replaceChildren(...nodes);
     }
-    const nodes=[]; vtHits.forEach((f,i)=>{ const[m,d]=buildVtRow(f,i); nodes.push(m,d); });
-    tbody.replaceChildren(...nodes);
+
+    // ── Covered IOCs (collapsible bottom section) ─────────────────────────────
+    if (covCount) covCount.textContent = coveredHits.length;
+    if (covSec)   covSec.style.display = coveredHits.length ? '' : 'none';
+    if (covBody && coveredHits.length) {
+        const nodes=[]; coveredHits.forEach((f,i)=>{ const[m,d]=buildVtRow(f,i+'_cov'); nodes.push(m,d); });
+        covBody.replaceChildren(...nodes);
+    }
 }
+
+// ── Toggle covered section ────────────────────────────────────────────────────
+window._toggleCovered = function() {
+    const body    = document.getElementById('coveredBody');
+    const chevron = document.getElementById('coveredChevron');
+    const open    = body.style.display === 'block';
+    body.style.display    = open ? 'none' : 'block';
+    chevron.textContent   = open ? '▶' : '▼';
+};
 
 // ── Scan history ──────────────────────────────────────────────────────────────
 function renderScans(scans) {
@@ -944,14 +997,13 @@ window._applyFilters = function() {
 };
 
 window._applyVtFilters = function() {
-    const sev         = document.getElementById('vtFilterSeverity').value;
-    const showD       = document.getElementById('vtFilterDismissed').checked;
-    const hideCovered = document.getElementById('vtHideCovered')?.checked ?? true;
+    const sev   = document.getElementById('vtFilterSeverity').value;
+    const showD = document.getElementById('vtFilterDismissed').checked;
+    // Only filter the live findings table — covered section is always visible when expanded
     document.querySelectorAll('#vtBody .finding-row').forEach(row=>{
         let show = true;
-        if (sev         && row.dataset.severity  !== sev)          show = false;
-        if (!showD      && row.dataset.dismissed === 'true')        show = false;
-        if (hideCovered && row.dataset.platform  === 'vt_known_ioc') show = false;
+        if (sev   && row.dataset.severity  !== sev)        show = false;
+        if (!showD && row.dataset.dismissed === 'true')    show = false;
         row.style.display = show ? '' : 'none';
         const next = row.nextElementSibling;
         if (next && !next.classList.contains('finding-row')) next.style.display = show ? '' : 'none';

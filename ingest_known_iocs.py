@@ -40,7 +40,7 @@ TM_SHA256_IOCS = [
     ("80920e8843ead75c58d56f55d351dbff01ccf9f28090e401479f21d651190b41", "ClaudeCode_x64.exe",    "TrojanSpy.Win64.VIDAR.CLC", "Dropper"),
     # TradeAI.exe variants — the rotating campaign dropper
     ("0b6ed577b993fd81e14f9abbef710e881629b8521580f3a127b2184685af7e05", "TradeAI.exe",           "TrojanSpy.Win64.VIDAR.CLU", "Dropper"),
-    ("0f69513905b9aeca9ad2659ae16f4363ac03a359abeac9ac05cab70a50f17b65", "TradeAI.exe",           "TrojanSpy.Win64.VIDAR.CLG", "Dropper"),
+    # 0f69513905b9aeca9ad2659ae16f4363ac03a359abeac9ac05cab70a50f17b65 — excluded (already covered by livehunt)
     ("18467faa4fa10ea30fef2012fbd2c36f31407d0466b4e880dd1b6e1e37c9aff6", "TradeAI.exe",           "TrojanSpy.Win64.VIDAR.CLK", "Dropper"),
     ("249058ce8dc6e74cff9fb84d4d32c82e371265b40d02bb70b7955dceea008139", "TradeAI.exe",           "TrojanSpy.Win64.VIDAR.CLD", "Dropper"),
     ("2a4a8f58ad259bde54e9d37cc4a86563797c99a5dc31a0ae39a92f7807b846b9", "TradeAI.exe",           "TrojanSpy.Win64.VIDAR.CLI", "Dropper"),
