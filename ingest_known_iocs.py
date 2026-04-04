@@ -20,7 +20,7 @@ import os
 from datetime import datetime, timezone
 
 import httpx
-from supabase import acreate_client
+from supabase import create_client   # sync client — no await needed on .execute()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%H:%M:%S")
 logger = logging.getLogger("ioc-ingest")
@@ -265,7 +265,7 @@ def build_known_ioc_record(sha256: str, filename: str, tm_detection: str,
 
 async def main():
     logger.info("Connecting to Supabase and VT...")
-    db = await acreate_client(SUPABASE_URL, SUPABASE_KEY)
+    db = create_client(SUPABASE_URL, SUPABASE_KEY)   # sync — no await
 
     http = httpx.AsyncClient(
         timeout=30.0,
