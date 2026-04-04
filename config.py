@@ -15,10 +15,19 @@ SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 
 # ── VirusTotal ────────────────────────────────────────────────────────────────
 
-VT_API_KEY           = os.environ.get("VT_API_KEY", "")
-# Name of the VT Livehunt ruleset to poll (set in VT dashboard).
-# Leave empty to fetch ALL hunting notifications (any ruleset).
-VT_HUNT_RULESET_NAME = os.environ.get("VT_HUNT_RULESET_NAME", "claude_code_lures")
+VT_API_KEY = os.environ.get("VT_API_KEY", "")
+
+# Comma-separated list of VT Livehunt ruleset names to poll.
+# These must match the ruleset names created in the VT Intelligence dashboard.
+# Default maps to the 3 split rulesets (dropper, packer, payload).
+# Set VT_HUNT_RULESET_NAMES env var to override (or leave empty to poll ALL).
+_rulesets_raw    = os.environ.get("VT_HUNT_RULESET_NAMES", "claude_lure_dropper,claude_lure_packer,claude_lure_payload")
+VT_HUNT_RULESET_NAMES: list[str] = [r.strip() for r in _rulesets_raw.split(",") if r.strip()]
+
+# Legacy single-name support (if set, takes precedence)
+_legacy = os.environ.get("VT_HUNT_RULESET_NAME", "")
+if _legacy and _legacy not in VT_HUNT_RULESET_NAMES:
+    VT_HUNT_RULESET_NAMES.insert(0, _legacy)
 
 # ── Scanner settings ──────────────────────────────────────────────────────────
 

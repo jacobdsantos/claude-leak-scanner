@@ -114,14 +114,17 @@ class VirusTotalScanner(PlatformScanner):
 
         return min(score, 100), reasons
 
-    # ── Main search: polls notifications + enriches files ────────────────────
+    # ── Main search: polls notifications across all configured rulesets ──────
 
     async def search(self, queries: list[str], days_back: int) -> list[RepoCandidate]:
-        """Poll VT hunting notifications. queries/days_back drive the date window;
-        actual hunt rule matching is configured on the VT dashboard side.
+        """Poll VT hunting_notifications for all configured rulesets.
 
-        Populates self._scored_findings — caller (run_vt_scan) processes these.
-        Returns empty list (VT findings bypass the repo scoring pipeline).
+        Iterates over each ruleset name in config.VT_HUNT_RULESET_NAMES and
+        paginates through notifications within the lookback window. Deduplicates
+        SHA256s across rulesets so the same file isn't ingested twice.
+
+        Populates self._scored_findings — consumed by run_vt_scan().
+        Returns [] because VT findings bypass the repo scoring pipeline.
         """
         self._scored_findings = []
 
@@ -129,135 +132,146 @@ class VirusTotalScanner(PlatformScanner):
             logger.warning("[vt_livehunt] VT_API_KEY not set — skipping")
             return []
 
-        http        = await self.client()
-        since_ts    = int((datetime.now(timezone.utc) - timedelta(days=days_back)).timestamp())
-        ruleset     = config.VT_HUNT_RULESET_NAME
-        seen_sha256 : set[str] = set()
-        cursor      : Optional[str] = None
-        page        = 0
-        max_pages   = 20        # safety cap: 20 × 40 = 800 notifications max
+        http     = await self.client()
+        since_ts = int((datetime.now(timezone.utc) - timedelta(days=days_back)).timestamp())
+        seen_sha256: set[str] = set()
 
-        logger.info(f"[vt_livehunt] Polling notifications (ruleset={ruleset or 'ALL'}, days_back={days_back})")
+        # One entry per ruleset; empty string = poll ALL notifications (no filter)
+        rulesets = config.VT_HUNT_RULESET_NAMES or [""]
 
-        while page < max_pages:
-            params: dict = {"limit": 40}
-            if cursor:
-                params["cursor"] = cursor
-            if ruleset:
-                params["filter"] = f"ruleset_name:{ruleset}"
+        for ruleset in rulesets:
+            label = ruleset or "ALL"
+            logger.info(f"[vt_livehunt] Polling ruleset='{label}' days_back={days_back}")
+            cursor: Optional[str] = None
+            page    = 0
+            max_pages = 20  # 20 × 40 = 800 notifications per ruleset
 
-            try:
-                resp = await http.get(f"{_VT_BASE}/intelligence/hunting_notifications", params=params)
-            except Exception as e:
-                logger.error(f"[vt_livehunt] Network error fetching notifications: {e}")
-                break
+            while page < max_pages:
+                params: dict = {"limit": 40}
+                if cursor:
+                    params["cursor"] = cursor
+                if ruleset:
+                    params["filter"] = f"ruleset_name:{ruleset}"
 
-            if resp.status_code == 401:
-                logger.error("[vt_livehunt] 401 Unauthorized — check VT_API_KEY")
-                break
-            if resp.status_code == 403:
-                logger.error(
-                    "[vt_livehunt] 403 Forbidden — Livehunt requires a VT Intelligence subscription"
-                )
-                break
-            if resp.status_code == 429:
-                logger.warning("[vt_livehunt] Rate limited (429) — stopping pagination")
-                break
-            if not resp.is_success:
-                logger.error(f"[vt_livehunt] Unexpected status {resp.status_code}")
-                break
-
-            data          = resp.json()
-            notifications = data.get("data", [])
-
-            if not notifications:
-                logger.info("[vt_livehunt] No more notifications")
-                break
-
-            stop_paginating = False
-            for notif in notifications:
-                attrs        = notif.get("attributes", {})
-                notif_date   = attrs.get("date", 0)
-                rule_name    = attrs.get("rule_name") or attrs.get("ruleset_name") or "unknown_rule"
-                sha256       = attrs.get("sha256", "")
-
-                # Stop when we've gone past the lookback window
-                if notif_date and notif_date < since_ts:
-                    stop_paginating = True
+                try:
+                    resp = await http.get(
+                        f"{_VT_BASE}/intelligence/hunting_notifications", params=params
+                    )
+                except Exception as e:
+                    logger.error(f"[vt_livehunt] Network error (ruleset={label}): {e}")
                     break
 
-                if not sha256 or sha256 in seen_sha256:
-                    continue
-                seen_sha256.add(sha256)
+                if resp.status_code == 401:
+                    logger.error("[vt_livehunt] 401 Unauthorized — check VT_API_KEY")
+                    return []   # Fatal: stop all ruleset polling
+                if resp.status_code == 403:
+                    logger.error(
+                        "[vt_livehunt] 403 Forbidden — Livehunt requires VT Intelligence"
+                    )
+                    return []
+                if resp.status_code == 429:
+                    logger.warning(f"[vt_livehunt] Rate limited (429) on ruleset={label}")
+                    break
+                if not resp.is_success:
+                    logger.error(f"[vt_livehunt] HTTP {resp.status_code} on ruleset={label}")
+                    break
 
-                # Enrich: fetch full file details from VT
-                try:
-                    file_resp = await http.get(f"{_VT_BASE}/files/{sha256}")
-                    if file_resp.status_code == 404:
+                data          = resp.json()
+                notifications = data.get("data", [])
+                if not notifications:
+                    logger.info(f"[vt_livehunt] No more notifications for ruleset={label}")
+                    break
+
+                stop_paginating = False
+                for notif in notifications:
+                    attrs      = notif.get("attributes", {})
+                    notif_date = attrs.get("date", 0)
+                    rule_name  = (
+                        attrs.get("rule_name")
+                        or attrs.get("ruleset_name")
+                        or "unknown_rule"
+                    )
+                    sha256 = attrs.get("sha256", "")
+
+                    # Stop when past the lookback window
+                    if notif_date and notif_date < since_ts:
+                        stop_paginating = True
+                        break
+
+                    if not sha256 or sha256 in seen_sha256:
                         continue
-                    if not file_resp.is_success:
-                        logger.warning(f"[vt_livehunt] File fetch {sha256[:12]}… → {file_resp.status_code}")
+                    seen_sha256.add(sha256)
+
+                    # Enrich: fetch full file details from VT
+                    try:
+                        file_resp = await http.get(f"{_VT_BASE}/files/{sha256}")
+                        if file_resp.status_code == 404:
+                            continue
+                        if not file_resp.is_success:
+                            logger.warning(
+                                f"[vt_livehunt] File {sha256[:12]}… → {file_resp.status_code}"
+                            )
+                            continue
+                        file_attrs = file_resp.json().get("data", {}).get("attributes", {})
+                    except Exception as e:
+                        logger.warning(f"[vt_livehunt] File fetch error {sha256[:12]}…: {e}")
                         continue
-                    file_attrs = file_resp.json().get("data", {}).get("attributes", {})
-                except Exception as e:
-                    logger.warning(f"[vt_livehunt] File fetch failed for {sha256[:12]}…: {e}")
-                    continue
 
-                # Best available filename
-                filename = (
-                    file_attrs.get("meaningful_name")
-                    or file_attrs.get("name")
-                    or f"{sha256[:16]}…"
-                )
+                    filename = (
+                        file_attrs.get("meaningful_name")
+                        or file_attrs.get("name")
+                        or f"{sha256[:16]}…"
+                    )
 
-                score, reasons = self._score_file(file_attrs, sha256, filename, rule_name)
-                if score < config.MIN_SCORE:
-                    continue
+                    score, reasons = self._score_file(file_attrs, sha256, filename, rule_name)
+                    if score < config.MIN_SCORE:
+                        continue
 
-                # Metadata for display
-                stats     = file_attrs.get("last_analysis_stats", {})
-                malicious = stats.get("malicious", 0)
-                total     = max(sum(stats.values()), 1)
-                size_mb   = round((file_attrs.get("size") or 0) / (1024 * 1024), 1)
-                first_sub = file_attrs.get("first_submission_date")
-                first_seen_dt = (
-                    datetime.fromtimestamp(first_sub, tz=timezone.utc)
-                    if first_sub else datetime.now(timezone.utc)
-                )
+                    stats     = file_attrs.get("last_analysis_stats", {})
+                    malicious = stats.get("malicious", 0)
+                    total     = max(sum(stats.values()), 1)
+                    size_mb   = round((file_attrs.get("size") or 0) / (1024 * 1024), 1)
+                    first_sub = file_attrs.get("first_submission_date")
+                    first_seen_dt = (
+                        datetime.fromtimestamp(first_sub, tz=timezone.utc)
+                        if first_sub else datetime.now(timezone.utc)
+                    )
 
-                finding = ScoredFinding(
-                    id=f"vt_livehunt:{sha256}",
-                    platform="vt_livehunt",
-                    repo_name=filename,
-                    repo_url=f"https://www.virustotal.com/gui/file/{sha256}",
-                    description=(
-                        f"{file_attrs.get('type_description', 'Unknown type')} · "
-                        f"{malicious}/{total} detections · {size_mb} MB"
-                    ),
-                    # Repurpose owner_login to store hunt rule name for display
-                    owner_login=rule_name,
-                    score=score,
-                    severity=config.severity_for_score(score),
-                    reasons=reasons,
-                    # Store full SHA256 here — never truncated
-                    suspicious_files=[sha256],
-                    repo_created_at=first_seen_dt.isoformat(),
-                )
-                self._scored_findings.append(finding)
-                logger.info(
-                    f"[vt_livehunt] {filename} | score={score} | {malicious}/{total} dets"
-                )
+                    finding = ScoredFinding(
+                        id=f"vt_livehunt:{sha256}",
+                        platform="vt_livehunt",
+                        repo_name=filename,
+                        repo_url=f"https://www.virustotal.com/gui/file/{sha256}",
+                        description=(
+                            f"{file_attrs.get('type_description', 'Unknown type')} · "
+                            f"{malicious}/{total} detections · {size_mb} MB"
+                        ),
+                        owner_login=rule_name,   # hunt rule name shown in VT Files tab
+                        score=score,
+                        severity=config.severity_for_score(score),
+                        reasons=reasons,
+                        suspicious_files=[sha256],   # full SHA256 — never truncated
+                        repo_created_at=first_seen_dt.isoformat(),
+                    )
+                    self._scored_findings.append(finding)
+                    logger.info(
+                        f"[vt_livehunt] [{label}] {filename} | score={score} "
+                        f"| {malicious}/{total} dets"
+                    )
 
-            if stop_paginating:
-                break
+                if stop_paginating:
+                    break
 
-            meta   = data.get("meta", {})
-            cursor = meta.get("cursor")
-            if not cursor:
-                break
-            page += 1
+                meta   = data.get("meta", {})
+                cursor = meta.get("cursor")
+                if not cursor:
+                    break
+                page += 1
 
-        logger.info(f"[vt_livehunt] Total findings: {len(self._scored_findings)}")
+        logger.info(
+            f"[vt_livehunt] Done — {len(self._scored_findings)} total findings "
+            f"across {len(rulesets)} ruleset(s)"
+        )
         return []   # VT findings bypass the repo scoring pipeline
 
     # ── Retrohunt ─────────────────────────────────────────────────────────────
