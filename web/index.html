@@ -246,34 +246,6 @@
         </table>
     </div>
 
-    <!-- VT Setup hint (hidden once findings exist) -->
-    <div id="vtSetupHint" style="display:none; padding: 24px; color: var(--text-secondary); font-size: 13px;">
-        <p><strong style="color:var(--text-primary);">No VT findings yet.</strong>
-        To enable livehunt: create a ruleset named <code>claude_code_lures</code> in your
-        <a href="https://www.virustotal.com/gui/hunting/rulesets" target="_blank" style="color:var(--accent)">VT Intelligence dashboard</a>,
-        add <code>VT_API_KEY</code> and <code>VT_HUNT_RULESET_NAME</code> as GitHub secrets,
-        then trigger the <em>VT Livehunt</em> workflow.</p>
-        <details style="margin-top:12px;">
-            <summary style="cursor:pointer; color:var(--accent);">Sample YARA-X rule</summary>
-            <pre style="margin-top:8px; padding:12px; background:var(--surface-2); border-radius:4px; font-size:11px; overflow-x:auto;">import "vt"
-
-rule ClaudeCodeLure {
-    meta:
-        description = "Claude Code lure — Vidar/GhostSocks dropper"
-        author      = "Trend Micro PH THT"
-    strings:
-        $fn_claude  = "ClaudeCode_x64" nocase wide ascii
-        $fn_trade   = "TradeAI.exe"    nocase wide ascii
-        $fn_openclaw= "openclaudecode" nocase wide ascii
-        $c2_ip1     = "147.45.197.92"
-        $c2_ip2     = "94.228.161.88"
-        $c2_domain  = "rti.cargomanbd.com"
-        $steam_ddrop= "steamcommunity.com/profiles/"
-    condition:
-        any of them and vt.metadata.analysis_stats.malicious &gt; 2
-}</pre>
-        </details>
-    </div>
 </div>
 
 <script type="module">
@@ -659,20 +631,17 @@ function buildVtRow(f, i) {
 // ── VT: render ────────────────────────────────────────────────────────────────
 function renderVt(findings) {
     const tbody  = document.getElementById('vtBody');
-    const hint   = document.getElementById('vtSetupHint');
     const vtHits = findings.filter(f => VT_PLATFORMS.includes(f.platform));
 
     if (!vtHits.length) {
         const tr = document.createElement('tr'); const td = document.createElement('td');
         td.colSpan = 7; const em = document.createElement('div'); em.className = 'empty-state';
         const ic = document.createElement('div'); ic.className = 'icon'; ic.textContent = '\u{1F9EC}';
-        const p  = document.createElement('p'); p.textContent = 'No VT file findings yet.';
+        const p  = document.createElement('p'); p.textContent = 'No VT file findings yet. Trigger the VT Livehunt workflow from GitHub Actions to ingest results.';
         em.appendChild(ic); em.appendChild(p); td.appendChild(em); tr.appendChild(td);
         tbody.replaceChildren(tr);
-        if (hint) hint.style.display = 'block';
         return;
     }
-    if (hint) hint.style.display = 'none';
     const nodes = [];
     vtHits.forEach((f, i) => { const [m, d] = buildVtRow(f, i); nodes.push(m, d); });
     tbody.replaceChildren(...nodes);

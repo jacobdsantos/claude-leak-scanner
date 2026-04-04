@@ -21,7 +21,7 @@ VT_API_KEY = os.environ.get("VT_API_KEY", "")
 # These must match the ruleset names created in the VT Intelligence dashboard.
 # Default maps to the 3 split rulesets (dropper, packer, payload).
 # Set VT_HUNT_RULESET_NAMES env var to override (or leave empty to poll ALL).
-_rulesets_raw    = os.environ.get("VT_HUNT_RULESET_NAMES", "claude_lure_dropper,claude_lure_packer,claude_lure_payload")
+_rulesets_raw    = os.environ.get("VT_HUNT_RULESET_NAMES", "claude_lure_droppers,claude_lure_packer,claude_lure_payload")
 VT_HUNT_RULESET_NAMES: list[str] = [r.strip() for r in _rulesets_raw.split(",") if r.strip()]
 
 # Legacy single-name support (if set, takes precedence)
