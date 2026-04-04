@@ -4,3 +4,11 @@ __pycache__/
 *.db
 output/
 .env
+*.env
+
+# Internal / session files — never push to public repo
+progress.md
+MIGRATION_PROMPT.md
+claude_lure_scanner.py
+docs/plans/
+intel471.py
