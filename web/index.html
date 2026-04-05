@@ -975,13 +975,43 @@ function renderRepos(findings) {
         const p=document.createElement('p'); p.textContent='No repository findings yet. Scans run hourly via GitHub Actions.';
         em.append(ic,p); td.appendChild(em); tr.appendChild(td); tbody.replaceChildren(tr); return;
     }
-    // Sort by first_seen descending (newest first) by default
+    // Sort by first_seen descending (newest first)
     repos.sort((a,b) => {
         const da = a.first_seen ? new Date(a.first_seen).getTime() : 0;
         const db = b.first_seen ? new Date(b.first_seen).getTime() : 0;
         return db - da;
     });
-    const nodes=[]; repos.forEach((f,i)=>{ const[m,d]=buildRepoRow(f,i); nodes.push(m,d); });
+
+    // Group by date — each day gets a section header row
+    const nodes = [];
+    let currentDateLabel = '';
+    repos.forEach((f,i) => {
+        const dt = f.first_seen ? new Date(f.first_seen) : null;
+        const dateLabel = dt
+            ? dt.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+            : 'Unknown Date';
+
+        if (dateLabel !== currentDateLabel) {
+            currentDateLabel = dateLabel;
+            // Count repos for this date
+            const dateCount = repos.filter(r => {
+                const rd = r.first_seen ? new Date(r.first_seen) : null;
+                const rl = rd ? rd.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'Unknown Date';
+                return rl === dateLabel;
+            }).length;
+            // Insert date header row
+            const hdr = document.createElement('tr');
+            const hdrTd = document.createElement('td');
+            hdrTd.colSpan = 9;
+            hdrTd.style.cssText = 'padding:10px 14px 6px;border:none;background:var(--surface-1);font-family:var(--font-ui);font-size:12px;font-weight:700;letter-spacing:0.04em;color:var(--text-primary);border-left:3px solid var(--accent);';
+            hdrTd.textContent = dateLabel + '  (' + dateCount + ')';
+            hdr.appendChild(hdrTd);
+            nodes.push(hdr);
+        }
+
+        const [m, d] = buildRepoRow(f, i);
+        nodes.push(m, d);
+    });
     tbody.replaceChildren(...nodes);
 }
 
