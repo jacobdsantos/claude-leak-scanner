@@ -3,22 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Claude Code Lure Monitor</title>
+    <title>Lure Monitor — Threat Intelligence Console</title>
     <link rel="stylesheet" href="static/style.css">
     <style>
-        code, .mono { font-family: var(--font-data); font-size: 12px; }
-
         /* ── Layout shell ──────────────────────────────────────────────── */
         html, body { height: 100%; overflow: hidden; }
 
         .app-shell {
             display: flex;
-            height: calc(100vh - 48px); /* below header */
+            height: calc(100vh - 48px);
         }
 
         /* ── Sidebar ───────────────────────────────────────────────────── */
         .sidebar {
-            width: 200px;
+            width: 196px;
             flex-shrink: 0;
             background: var(--surface-1);
             border-right: 1px solid var(--edge);
@@ -35,378 +33,522 @@
         }
 
         .nav-item {
-            display: flex; align-items: center; gap: 9px;
-            padding: 9px 10px; border-radius: 4px; cursor: pointer;
-            color: var(--text-secondary); font-family: var(--font-ui); font-size: 11px;
-            font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
-            border: none; background: none; width: 100%; text-align: left;
-            transition: background 0.12s, color 0.12s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 9px 10px;
+            border-radius: 2px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-family: var(--font-ui);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+            transition: background 0.1s, color 0.1s;
         }
+
         .nav-item:hover { background: var(--surface-2); color: var(--text-primary); }
         .nav-item.active { background: var(--accent-dim); color: var(--accent); }
 
-        .nav-icon { font-size: 13px; flex-shrink: 0; width: 16px; text-align: center; }
+        .nav-icon { font-size: 12px; flex-shrink: 0; width: 16px; text-align: center; }
         .nav-label { flex: 1; }
 
         .nav-count {
-            margin-left: auto; font-size: 11px; font-family: var(--font-data);
-            background: var(--surface-2); color: var(--text-secondary);
-            padding: 1px 7px; border-radius: 10px; font-weight: 600;
+            margin-left: auto;
+            font-size: 11px;
+            font-family: var(--font-data);
+            background: var(--surface-2);
+            color: var(--text-secondary);
+            padding: 1px 7px;
+            border-radius: 10px;
         }
-        .nav-item.active .nav-count { background: rgba(0,229,255,0.15); color: var(--accent); }
+
+        .nav-item.active .nav-count {
+            background: rgba(240, 180, 41, 0.18);
+            color: var(--accent);
+        }
 
         .nav-separator { height: 1px; background: var(--edge); margin: 10px 8px; }
+
+        .nav-new {
+            font-size: 9px;
+            font-weight: 700;
+            color: var(--sig-active);
+            font-family: var(--font-data);
+            background: rgba(46, 213, 115, 0.1);
+            padding: 1px 5px;
+            border-radius: 8px;
+        }
 
         /* Sidebar severity mini-stats */
         .sidebar-severity {
             padding: 10px 14px;
-            display: flex; flex-direction: column; gap: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
         }
+
         .sev-row {
-            display: flex; align-items: center; gap: 8px; font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
         }
+
         .sev-dot {
-            width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+            width: 5px; height: 5px;
+            border-radius: 50%;
+            flex-shrink: 0;
         }
+
         .sev-dot.critical { background: var(--sig-critical); }
         .sev-dot.high     { background: var(--sig-high); }
         .sev-dot.medium   { background: var(--sig-medium); }
         .sev-dot.low      { background: var(--sig-low); }
-        .sev-name { color: var(--text-secondary); flex: 1; font-family: var(--font-ui); font-weight: 600; letter-spacing: 0.04em; }
-        .sev-val  { color: var(--text-primary); font-family: var(--font-data); font-weight: 600; }
 
-        /* Scan running in sidebar */
+        .sev-name {
+            color: var(--text-secondary);
+            flex: 1;
+            font-family: var(--font-ui);
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-size: 10px;
+        }
+
+        .sev-val {
+            color: var(--text-primary);
+            font-family: var(--font-data);
+        }
+
         .sidebar-footer {
             margin-top: auto;
             padding: 10px 14px;
             border-top: 1px solid var(--edge);
-            font-size: 11px; color: var(--text-secondary);
+            font-size: 11px;
+            color: var(--text-secondary);
         }
+
         .scan-running-indicator {
-            display: none; align-items: center; gap: 6px;
-            color: var(--sig-active); font-size: 11px;
+            display: none;
+            align-items: center;
+            gap: 6px;
+            color: var(--sig-active);
+            font-family: var(--font-data);
+            font-size: 10px;
         }
+
         .scan-running-indicator::before {
-            content: ''; width: 6px; height: 6px; border-radius: 50%;
-            background: var(--sig-active); flex-shrink: 0;
+            content: '';
+            width: 5px; height: 5px;
+            border-radius: 50%;
+            background: var(--sig-active);
+            flex-shrink: 0;
             animation: pulse 1.2s ease-in-out infinite;
         }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 
         /* ── Main content ──────────────────────────────────────────────── */
         .main-content {
-            flex: 1; min-width: 0;
+            flex: 1;
+            min-width: 0;
             overflow-y: auto;
             background: var(--surface-0);
         }
 
         .section-pane { display: none; }
-        .section-pane.active { display: block; }
+        .section-pane.active { display: block; animation: fadeIn 0.18s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-        /* Section inner header */
         .section-header {
-            display: flex; align-items: center; justify-content: space-between;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
             padding: 14px 20px 10px;
             border-bottom: 1px solid var(--edge);
+            gap: 12px;
         }
+
         .section-title {
-            font-family: var(--font-display); font-size: 15px;
-            font-weight: 600; color: var(--text-primary); letter-spacing: 0.03em;
+            font-family: var(--font-display);
+            font-size: 14px;
+            font-weight: 800;
+            color: var(--text-max);
+            letter-spacing: 2px;
+            text-transform: uppercase;
         }
-        .section-meta { font-size: 12px; color: var(--text-secondary); }
+
+        .section-meta {
+            font-family: var(--font-data);
+            font-size: 11px;
+            color: var(--text-ghost);
+        }
 
         /* ── Dashboard section ─────────────────────────────────────────── */
-        .dashboard-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 20px; }
+        .dashboard-body {
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
 
-        /* Stats row */
-        .stats-grid { margin: 0; }   /* override any existing margin */
+        /* Campaign card */
+        .campaign-card {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 14px 18px;
+            background: linear-gradient(135deg, var(--surface-1) 0%, var(--surface-2) 100%);
+            border: 1px solid var(--edge);
+            border-radius: 2px;
+            border-left: 3px solid var(--sig-critical);
+        }
 
-        /* Severity distribution bar */
-        .sev-dist { }
+        .campaign-card-body { flex: 1; }
+
+        .campaign-card-title {
+            font-family: var(--font-display);
+            font-size: 13px;
+            font-weight: 800;
+            color: var(--text-max);
+            letter-spacing: 1px;
+        }
+
+        .campaign-card-meta {
+            font-family: var(--font-data);
+            font-size: 10px;
+            color: var(--text-ghost);
+            margin-top: 3px;
+            letter-spacing: 0.3px;
+        }
+
+        .campaign-card-stat {
+            text-align: center;
+            padding: 0 14px;
+            border-left: 1px solid var(--edge);
+        }
+
+        .campaign-card-stat .val {
+            font-family: var(--font-display);
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--text-max);
+        }
+
+        .campaign-card-stat .lbl {
+            font-family: var(--font-data);
+            font-size: 9px;
+            color: var(--text-ghost);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        /* Severity distribution */
         .sev-dist-label {
-            font-family: var(--font-ui); font-size: 11px; font-weight: 700;
-            letter-spacing: 0.07em; text-transform: uppercase;
-            color: var(--text-secondary); margin-bottom: 8px;
+            font-family: var(--font-ui);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
         }
+
         .sev-dist-track {
-            height: 6px; border-radius: 3px; background: var(--surface-2);
-            display: flex; overflow: hidden; margin-bottom: 10px;
+            height: 5px;
+            border-radius: 1px;
+            background: var(--surface-2);
+            display: flex;
+            overflow: hidden;
+            margin-bottom: 10px;
         }
+
         .sev-dist-seg { height: 100%; transition: width 0.4s; }
         .sev-dist-seg.critical { background: var(--sig-critical); }
         .sev-dist-seg.high     { background: var(--sig-high); }
         .sev-dist-seg.medium   { background: var(--sig-medium); }
         .sev-dist-seg.low      { background: var(--sig-low); }
-        .sev-dist-legend {
-            display: flex; gap: 16px; flex-wrap: wrap;
-        }
+
+        .sev-dist-legend { display: flex; gap: 16px; flex-wrap: wrap; }
+
         .sev-legend-item {
-            display: flex; align-items: center; gap: 5px;
-            font-size: 11px; color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-family: var(--font-ui);
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            letter-spacing: 0.5px;
         }
-        .sev-legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
-        .sev-legend-count { font-family: var(--font-data); font-weight: 600; margin-left: 2px; }
 
-        /* Top threats */
-        .top-threats-label {
-            font-family: var(--font-ui); font-size: 11px; font-weight: 700;
-            letter-spacing: 0.07em; text-transform: uppercase;
-            color: var(--text-secondary); margin-bottom: 8px;
-        }
-        .threat-row {
-            display: flex; align-items: center; gap: 10px;
-            padding: 8px 10px; border-radius: 4px;
-            border: 1px solid var(--edge); background: var(--surface-1);
-            margin-bottom: 4px; cursor: pointer; transition: background 0.1s;
-        }
-        .threat-row:hover { background: var(--surface-2); }
-        .threat-row .score-pill {
-            font-family: var(--font-data); font-size: 11px; font-weight: 700;
-            padding: 2px 7px; border-radius: 3px; flex-shrink: 0;
-            background: var(--surface-2); color: var(--text-secondary);
-        }
-        .threat-row[data-severity="CRITICAL"] .score-pill { background: var(--sig-critical-dim); color: var(--sig-critical); }
-        .threat-row[data-severity="HIGH"]     .score-pill { background: var(--sig-high-dim);     color: var(--sig-high); }
-        .threat-row[data-severity="MEDIUM"]   .score-pill { background: var(--sig-medium-dim);   color: var(--sig-medium); }
-        .threat-row .threat-name { flex: 1; font-size: 12px; color: var(--text-primary); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .threat-row .threat-platform { font-size: 10px; }
-
-        /* Platform bar - dashboard only */
-        .dash-platform-bar { display: flex; flex-wrap: wrap; gap: 6px; }
-
-        
-        /* Campaign summary card */
-        .campaign-card {
-            display: flex; align-items: center; gap: 16px; padding: 12px 16px;
-            background: linear-gradient(135deg, var(--surface-1) 0%, var(--surface-2) 100%);
-            border: 1px solid var(--edge); border-radius: 6px; border-left: 3px solid var(--sig-critical);
-        }
-        .campaign-card-title { font-family: var(--font-ui); font-size: 13px; font-weight: 700; color: var(--text-primary); }
-        .campaign-card-meta { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
-        .campaign-card-stat {
-            text-align: center; padding: 0 12px; border-left: 1px solid var(--edge);
-        }
-        .campaign-card-stat .val { font-family: var(--font-data); font-size: 18px; font-weight: 700; color: var(--text-primary); }
-        .campaign-card-stat .lbl { font-size: 9px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; }
+        .sev-legend-dot { width: 7px; height: 7px; border-radius: 1px; flex-shrink: 0; }
+        .sev-legend-count { font-family: var(--font-data); margin-left: 2px; }
 
         /* 7-day timeline */
         .timeline-row {
-            display: flex; align-items: center; gap: 8px; margin-bottom: 3px; font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 3px;
+            font-size: 11px;
         }
-        .timeline-label { width: 50px; text-align: right; color: var(--text-secondary); font-family: var(--font-data); flex-shrink: 0; }
-        .timeline-bar-track { flex: 1; height: 14px; background: var(--surface-2); border-radius: 2px; overflow: hidden; }
-        .timeline-bar { height: 100%; border-radius: 2px; transition: width 0.4s; min-width: 2px; }
-        .timeline-bar.critical { background: var(--sig-critical); }
-        .timeline-bar.high { background: var(--sig-high); }
-        .timeline-bar.medium { background: var(--sig-medium); }
-        .timeline-bar.mixed { background: linear-gradient(90deg, var(--sig-critical) 0%, var(--sig-high) 100%); }
-        .timeline-count { width: 30px; font-family: var(--font-data); font-weight: 600; color: var(--text-secondary); }
 
-        /* New today badge in sidebar */
-        .nav-new {
-            font-size: 9px; font-weight: 700; color: var(--sig-active); font-family: var(--font-data);
-            background: rgba(16,232,122,0.1); padding: 1px 5px; border-radius: 8px;
+        .timeline-label {
+            width: 48px;
+            text-align: right;
+            color: var(--text-ghost);
+            font-family: var(--font-data);
+            font-size: 10px;
+            flex-shrink: 0;
         }
+
+        .timeline-bar-track {
+            flex: 1;
+            height: 12px;
+            background: var(--surface-2);
+            border-radius: 1px;
+            overflow: hidden;
+        }
+
+        .timeline-bar {
+            height: 100%;
+            border-radius: 1px;
+            transition: width 0.4s;
+            min-width: 2px;
+        }
+
+        .timeline-bar.critical { background: var(--sig-critical); }
+        .timeline-bar.high     { background: var(--sig-high); }
+        .timeline-bar.medium   { background: var(--sig-medium); }
+        .timeline-bar.mixed    { background: linear-gradient(90deg, var(--sig-critical) 0%, var(--accent) 100%); }
+
+        .timeline-count {
+            width: 28px;
+            font-family: var(--font-data);
+            font-size: 11px;
+            color: var(--text-ghost);
+        }
+
+        /* Today's threats feed */
+        .threat-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 7px 10px;
+            border-radius: 2px;
+            border: 1px solid var(--edge);
+            background: var(--surface-1);
+            margin-bottom: 4px;
+            cursor: pointer;
+            transition: background 0.1s, border-color 0.1s;
+        }
+
+        .threat-row:hover { background: var(--surface-2); border-color: var(--edge-bright); }
+
+        .threat-row .score-pill {
+            font-family: var(--font-data);
+            font-size: 11px;
+            padding: 2px 7px;
+            border-radius: 1px;
+            flex-shrink: 0;
+            background: var(--surface-2);
+            color: var(--text-secondary);
+        }
+
+        .threat-row[data-severity="CRITICAL"] .score-pill { background: var(--sig-critical-dim); color: var(--sig-critical); }
+        .threat-row[data-severity="HIGH"]     .score-pill { background: var(--sig-high-dim);     color: var(--sig-high); }
+        .threat-row[data-severity="MEDIUM"]   .score-pill { background: var(--sig-medium-dim);   color: var(--sig-medium); }
+
+        .threat-row .threat-name {
+            flex: 1;
+            font-family: var(--font-data);
+            font-size: 12px;
+            color: var(--text-primary);
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .threat-row .threat-platform { font-size: 10px; }
+
+        /* Platform bar for dashboard */
+        .dash-platform-bar { display: flex; flex-wrap: wrap; gap: 6px; }
 
         /* Search bar */
         .search-bar {
-            width: 200px; padding: 5px 10px; border: 1px solid var(--edge); border-radius: 3px;
-            background: var(--surface-2); color: var(--text-primary); font-family: var(--font-data);
-            font-size: 12px; outline: none; transition: border-color 0.15s;
+            width: 200px;
+            padding: 5px 10px;
+            border: 1px solid var(--edge);
+            border-radius: 2px;
+            background: var(--surface-2);
+            color: var(--text-primary);
+            font-family: var(--font-data);
+            font-size: 12px;
+            outline: none;
+            transition: border-color 0.12s;
         }
+
         .search-bar:focus { border-color: var(--accent); }
         .search-bar::placeholder { color: var(--text-ghost); }
 
-        
-        /* ── Polished buttons ────────────────────────────────────────── */
-        .action-btn {
-            display: inline-flex; align-items: center; gap: 4px;
-            padding: 4px 10px; border-radius: 4px; border: 1px solid var(--edge-bright);
-            background: none; color: var(--text-secondary); cursor: pointer;
-            font-family: var(--font-ui); font-size: 11px; font-weight: 600;
-            text-decoration: none; transition: all 0.15s; white-space: nowrap;
-        }
-        .action-btn:hover { background: var(--surface-2); color: var(--text-primary); border-color: var(--accent); }
-        .action-btn.danger:hover { border-color: var(--sig-critical); color: var(--sig-critical); }
-        .action-btn.primary { background: var(--accent-dim); color: var(--accent); border-color: rgba(0,229,255,0.3); }
-        .action-btn.primary:hover { background: rgba(0,229,255,0.2); }
+        /* Button group */
+        .btn-group { display: flex; gap: 4px; align-items: center; }
 
-        /* ── Toast notifications ─────────────────────────────────────── */
-        #toast-container {
-            position: fixed; bottom: 20px; right: 20px; z-index: 9999;
-            display: flex; flex-direction: column; gap: 8px;
-        }
-        .toast {
-            padding: 10px 16px; border-radius: 6px; font-size: 12px;
-            font-family: var(--font-ui); color: var(--text-max);
-            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-            animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s;
-            animation-fill-mode: forwards;
-        }
-        .toast.success { background: rgba(16,232,122,0.9); color: #0a0e14; }
-        .toast.error   { background: rgba(255,45,74,0.9); }
-        .toast.info    { background: rgba(0,229,255,0.9); color: #0a0e14; }
-        @keyframes toastIn  { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-        @keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateY(10px); } }
-
-        /* ── Smooth row expand ───────────────────────────────────────── */
-        .row-details {
-            max-height: 0; overflow: hidden; opacity: 0;
-            transition: max-height 0.3s ease, opacity 0.2s ease, padding 0.2s ease;
-            padding: 0 14px;
-        }
-        .row-details.show {
-            max-height: 600px; opacity: 1; padding: 12px 14px;
-        }
-
-        /* ── Better table row hover ──────────────────────────────────── */
-        .finding-row { transition: background 0.1s; }
-        .finding-row:hover { background: var(--surface-raised) !important; }
-        .finding-row td { vertical-align: middle; }
-
-        /* ── Section transition ──────────────────────────────────────── */
-        .section-pane.active { animation: fadeIn 0.2s ease; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* ── Export button ───────────────────────────────────────────── */
-        .export-btn {
-            display: inline-flex; align-items: center; gap: 5px;
-            padding: 5px 12px; border-radius: 4px;
-            border: 1px solid var(--edge-bright); background: none;
-            color: var(--text-secondary); cursor: pointer;
-            font-family: var(--font-ui); font-size: 11px; font-weight: 600;
-            transition: all 0.15s;
-        }
-        .export-btn:hover { background: var(--surface-2); color: var(--accent); border-color: var(--accent); }
-
-        /* ── Keyboard shortcut hints ─────────────────────────────────── */
+        /* Keyboard shortcut hint */
         .kbd {
-            display: inline-block; padding: 1px 5px; border-radius: 3px;
-            background: var(--surface-2); border: 1px solid var(--edge);
-            font-family: var(--font-data); font-size: 9px; color: var(--text-ghost);
+            display: inline-block;
+            padding: 1px 5px;
+            border-radius: 2px;
+            background: var(--surface-2);
+            border: 1px solid var(--edge);
+            font-family: var(--font-data);
+            font-size: 9px;
+            color: var(--text-void);
             margin-left: 4px;
         }
 
-        /* ── Action button group ─────────────────────────────────────── */
-        .btn-group { display: flex; gap: 4px; align-items: center; }
-
-        /* ── Findings table styles ─────────────────────────────────────── */
-        .filter-bar {
-            padding: 8px 16px; display: flex; gap: 10px; align-items: center;
-            border-bottom: 1px solid var(--edge);
+        /* ── Toast notifications ─────────────────────────────────────── */
+        #toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
         }
 
-        /* Severity row accent — left border via first td */
-        .finding-row[data-severity="CRITICAL"] td:first-child { border-left: 3px solid var(--sig-critical); }
-        .finding-row[data-severity="HIGH"]     td:first-child { border-left: 3px solid var(--sig-high); }
-        .finding-row[data-severity="MEDIUM"]   td:first-child { border-left: 3px solid var(--sig-medium); }
-        .finding-row[data-severity="LOW"]      td:first-child { border-left: 3px solid var(--sig-low); }
-        .finding-row[data-dismissed="true"] { opacity: 0.35; }
-
-        /* NEW badge */
-        .badge-new {
-            display: inline-block; padding: 1px 5px; margin-left: 5px;
-            background: var(--accent-dim); color: var(--accent);
-            font-size: 9px; font-weight: 700; letter-spacing: 0.1em;
-            border-radius: 2px; font-family: var(--font-ui);
-            text-transform: uppercase; vertical-align: middle;
+        .toast {
+            padding: 10px 16px;
+            border-radius: 2px;
+            font-family: var(--font-ui);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: var(--void);
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+            animation: toastIn 0.25s ease, toastOut 0.25s ease 2.7s forwards;
         }
 
-        /* VT-specific */
-        .hash-cell { display: flex; align-items: center; gap: 6px; font-family: var(--font-data); font-size: 11px; color: var(--text-secondary); }
-        .copy-btn { background: none; border: 1px solid var(--edge); color: var(--text-secondary); padding: 1px 6px; border-radius: 3px; cursor: pointer; font-size: 10px; font-family: var(--font-ui); transition: all 0.15s; }
-        .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
-        .copy-btn.copied { border-color: var(--sig-active); color: var(--sig-active); }
-        .btn-vt { display: inline-flex; align-items: center; gap: 4px; background: none; border: 1px solid var(--edge-bright); color: var(--text-secondary); padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; font-family: var(--font-ui); text-decoration: none; transition: all 0.15s; }
-        .btn-vt:hover { border-color: var(--sig-medium); color: var(--sig-medium); }
-        .badge-rule { display: inline-block; padding: 1px 6px; border-radius: 3px; background: var(--accent-dim); color: var(--accent); font-size: 10px; font-family: var(--font-data); font-weight: 500; }
+        .toast.success { background: var(--sig-active); }
+        .toast.error   { background: var(--sig-critical); color: var(--text-max); }
+        .toast.info    { background: var(--accent); }
 
-        /* COVERED badge — known IOCs already in TM published research */
-        .badge-covered {
-            display: inline-block; padding: 2px 8px; border-radius: 3px;
-            background: rgba(75,106,138,0.15); color: var(--sig-low);
-            font-size: 10px; font-family: var(--font-ui); font-weight: 700;
-            letter-spacing: 0.08em; text-transform: uppercase;
-            border: 1px solid rgba(75,106,138,0.3);
-        }
-        /* Known IOC rows — dimmed but visible, distinct from new findings */
-        .finding-row[data-platform="vt_known_ioc"] { opacity: 0.55; }
-        .finding-row[data-platform="vt_known_ioc"]:hover { opacity: 0.85; }
+        @keyframes toastIn  { from { transform: translateX(80px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateY(8px); } }
 
-        
-        /* Copy button */
-        .copy-list-btn {
-            background: none; border: 1px solid var(--edge-bright); color: var(--text-secondary);
-            padding: 4px 10px; border-radius: 3px; cursor: pointer; font-size: 11px;
-            font-family: var(--font-ui); transition: all 0.15s; margin-left: auto;
-        }
-        .copy-list-btn:hover { border-color: var(--accent); color: var(--accent); }
-        .copy-list-btn.copied { border-color: var(--sig-active); color: var(--sig-active); }
-
-        /* Listed badge */
-        .badge-listed {
-            display: inline-block; padding: 1px 5px; border-radius: 2px;
-            background: rgba(0,229,255,0.08); color: var(--accent);
-            font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
-            font-family: var(--font-ui); text-transform: uppercase;
-            border: 1px solid rgba(0,229,255,0.2);
+        /* ── Error banner ────────────────────────────────────────────── */
+        #errorBanner {
+            display: none;
+            padding: 10px 20px;
+            background: var(--sig-critical-dim);
+            border-bottom: 1px solid var(--sig-critical);
+            color: var(--sig-critical);
+            font-family: var(--font-ui);
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
         }
 
-        /* Shimmer */
-        .shimmer { display: inline-block; width: 2ch; background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 3px; color: transparent; user-select: none; }
-        @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
-
-        /* Error banner */
-        #errorBanner { display: none; padding: 10px 20px; margin: 0 0 0 0; background: rgba(255,45,74,0.08); border-bottom: 1px solid var(--sig-critical); color: var(--sig-critical); font-size: 13px; }
-        #errorBanner button { margin-left: 12px; background: none; border: 1px solid currentColor; color: inherit; padding: 3px 10px; border-radius: 3px; cursor: pointer; font-family: var(--font-ui); font-size: 12px; }
+        #errorBanner button {
+            margin-left: 12px;
+            background: none;
+            border: 1px solid currentColor;
+            color: inherit;
+            padding: 3px 10px;
+            border-radius: 2px;
+            cursor: pointer;
+            font-family: var(--font-ui);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
 
         /* Scan history inside dashboard */
-        .dash-scan-history { }
         .dash-scan-history .scan-history { border: none; padding: 0; margin: 0; }
+
+        /* ── Covered IOCs section ────────────────────────────────────── */
+        .covered-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            cursor: pointer;
+            user-select: none;
+            color: var(--text-secondary);
+            font-family: var(--font-ui);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            transition: background 0.1s;
+        }
+
+        .covered-header:hover { background: var(--surface-1); }
+
+        .covered-count {
+            background: var(--surface-2);
+            padding: 1px 8px;
+            border-radius: 10px;
+            font-family: var(--font-data);
+            font-size: 11px;
+        }
+
+        .covered-chevron { margin-left: auto; font-size: 10px; }
     </style>
 </head>
 <body>
 
 <!-- ── Header ────────────────────────────────────────────────────────────── -->
-<header class="header" style="height:48px;">
-    <h1><span>&#9632;</span> Claude Code Lure Monitor</h1>
+<header class="header">
+    <h1><span>&#9632;</span> Lure Monitor</h1>
     <div class="header-actions">
-        <span id="lastScanLabel" style="font-size:12px; color:var(--text-secondary);"></span>
+        <span id="lastScanLabel" style="font-family:var(--font-data);font-size:11px;color:var(--text-ghost);"></span>
     </div>
 </header>
 
 <!-- ── App Shell ─────────────────────────────────────────────────────────── -->
 <div class="app-shell">
 
-    <!-- ── Left Sidebar ────────────────────────────────────────────────── -->
+    <!-- Sidebar -->
     <aside class="sidebar">
         <nav class="sidebar-nav">
-
             <button class="nav-item active" id="navDashboard" onclick="window._switchSection('dashboard')">
-                <span class="nav-icon">▣</span>
-                <span class="nav-label">Dashboard</span><span class="kbd">1</span>
+                <span class="nav-icon">&#9955;</span>
+                <span class="nav-label">Dashboard</span>
+                <span class="kbd">1</span>
             </button>
 
             <div class="nav-separator"></div>
 
             <button class="nav-item" id="navRepos" onclick="window._switchSection('repos')">
-                <span class="nav-icon">≡</span>
-                <span class="nav-label">Repositories</span><span class="kbd">2</span>
-                <span class="nav-count" id="navCountRepos">–</span>
+                <span class="nav-icon">&#8801;</span>
+                <span class="nav-label">Repositories</span>
+                <span class="kbd">2</span>
+                <span class="nav-count" id="navCountRepos">&ndash;</span>
                 <span class="nav-new" id="navNewToday" style="display:none;"></span>
             </button>
 
             <button class="nav-item" id="navVt" onclick="window._switchSection('vt')">
-                <span class="nav-icon">⬡</span>
-                <span class="nav-label">VT Files</span><span class="kbd">3</span>
-                <span class="nav-count" id="navCountVt">–</span>
+                <span class="nav-icon">&#11041;</span>
+                <span class="nav-label">VT Files</span>
+                <span class="kbd">3</span>
+                <span class="nav-count" id="navCountVt">&ndash;</span>
             </button>
-
         </nav>
 
         <div class="nav-separator"></div>
 
-        <!-- Severity breakdown in sidebar -->
+        <!-- Severity breakdown -->
         <div class="sidebar-severity">
             <div class="sev-row">
                 <span class="sev-dot critical"></span>
@@ -430,14 +572,14 @@
             </div>
         </div>
 
-        <!-- Sidebar footer: scan status -->
+        <!-- Footer -->
         <div class="sidebar-footer">
-            <div class="scan-running-indicator" id="scanRunning">Scanning</div>
-            <div id="sideLastScan" style="font-size:11px; color:var(--text-muted);"></div>
+            <div class="scan-running-indicator" id="scanRunning">SCANNING</div>
+            <div id="sideLastScan" style="font-family:var(--font-data);font-size:10px;color:var(--text-ghost);"></div>
         </div>
     </aside>
 
-    <!-- ── Main Content ─────────────────────────────────────────────────── -->
+    <!-- Main Content -->
     <main class="main-content">
 
         <!-- Error banner -->
@@ -448,62 +590,58 @@
 
         <!-- ══ Section 1: Dashboard ════════════════════════════════════════ -->
         <div class="section-pane active" id="sectionDashboard">
-
             <div class="section-header">
                 <span class="section-title">Overview</span>
-                <span class="section-meta" id="lastScanLabel">–</span>
+                <span class="section-meta" id="dashMeta">&ndash;</span>
             </div>
 
             <div class="dashboard-body">
-
                 <!-- Campaign summary card -->
                 <div class="campaign-card">
-                    <div style="flex:1;">
+                    <div class="campaign-card-body">
                         <div class="campaign-card-title">TradeAI Rotating Lure Campaign</div>
-                        <div class="campaign-card-meta">Vidar v18.7 + GhostSocks SOCKS5 | 25+ brand names | Active since Feb 2026</div>
+                        <div class="campaign-card-meta">Vidar v18.7 + GhostSocks SOCKS5 | 25+ brand lures | Active since Feb 2026</div>
                     </div>
                     <div class="campaign-card-stat">
-                        <div class="val" id="campRepos">–</div>
+                        <div class="val" id="campRepos">&ndash;</div>
                         <div class="lbl">Repos</div>
                     </div>
                     <div class="campaign-card-stat">
-                        <div class="val" id="campToday">–</div>
-                        <div class="lbl">New Today</div>
+                        <div class="val" id="campToday">&ndash;</div>
+                        <div class="lbl">Today</div>
                     </div>
                     <div class="campaign-card-stat">
-                        <div class="val" id="campVt">–</div>
+                        <div class="val" id="campVt">&ndash;</div>
                         <div class="lbl">VT Hits</div>
                     </div>
                 </div>
 
                 <!-- Stats cards -->
-                <div>
-                    <div class="stats-grid">
-                        <div class="stat-card total">
-                            <div class="label">Total Findings</div>
-                            <div class="value" id="statTotal"><span class="shimmer">00</span></div>
-                        </div>
-                        <div class="stat-card critical">
-                            <div class="label">Critical</div>
-                            <div class="value" id="statCritical"><span class="shimmer">0</span></div>
-                        </div>
-                        <div class="stat-card high">
-                            <div class="label">High</div>
-                            <div class="value" id="statHigh"><span class="shimmer">0</span></div>
-                        </div>
-                        <div class="stat-card medium">
-                            <div class="label">Medium</div>
-                            <div class="value" id="statMedium"><span class="shimmer">0</span></div>
-                        </div>
-                        <div class="stat-card platforms">
-                            <div class="label">Platforms</div>
-                            <div class="value" id="statPlatforms"><span class="shimmer">0/6</span></div>
-                        </div>
+                <div class="stats-grid">
+                    <div class="stat-card total">
+                        <div class="label">Total Findings</div>
+                        <div class="value" id="statTotal"><span class="shimmer">00</span></div>
+                    </div>
+                    <div class="stat-card critical">
+                        <div class="label">Critical</div>
+                        <div class="value" id="statCritical"><span class="shimmer">0</span></div>
+                    </div>
+                    <div class="stat-card high">
+                        <div class="label">High</div>
+                        <div class="value" id="statHigh"><span class="shimmer">0</span></div>
+                    </div>
+                    <div class="stat-card medium">
+                        <div class="label">Medium</div>
+                        <div class="value" id="statMedium"><span class="shimmer">0</span></div>
+                    </div>
+                    <div class="stat-card platforms">
+                        <div class="label">Platforms</div>
+                        <div class="value" id="statPlatforms"><span class="shimmer">0</span></div>
                     </div>
                 </div>
 
                 <!-- Severity distribution -->
-                <div class="sev-dist">
+                <div>
                     <div class="sev-dist-label">Severity Distribution</div>
                     <div class="sev-dist-track">
                         <div class="sev-dist-seg critical" id="distCritical" style="width:0%"></div>
@@ -514,19 +652,19 @@
                     <div class="sev-dist-legend">
                         <div class="sev-legend-item">
                             <div class="sev-legend-dot" style="background:var(--sig-critical)"></div>
-                            Critical <span class="sev-legend-count" id="legCritical">–</span>
+                            Critical <span class="sev-legend-count" id="legCritical">&ndash;</span>
                         </div>
                         <div class="sev-legend-item">
                             <div class="sev-legend-dot" style="background:var(--sig-high)"></div>
-                            High <span class="sev-legend-count" id="legHigh">–</span>
+                            High <span class="sev-legend-count" id="legHigh">&ndash;</span>
                         </div>
                         <div class="sev-legend-item">
                             <div class="sev-legend-dot" style="background:var(--sig-medium)"></div>
-                            Medium <span class="sev-legend-count" id="legMedium">–</span>
+                            Medium <span class="sev-legend-count" id="legMedium">&ndash;</span>
                         </div>
                         <div class="sev-legend-item">
                             <div class="sev-legend-dot" style="background:var(--sig-low)"></div>
-                            Low <span class="sev-legend-count" id="legLow">–</span>
+                            Low <span class="sev-legend-count" id="legLow">&ndash;</span>
                         </div>
                     </div>
                 </div>
@@ -540,38 +678,30 @@
                 <!-- 7-day timeline -->
                 <div>
                     <div class="sev-dist-label">7-Day Activity</div>
-                    <div id="timeline">
-                        <div style="color:var(--text-muted);font-size:11px;">Loading...</div>
-                    </div>
+                    <div id="timeline"></div>
                 </div>
 
-                <!-- Top threats (today only) -->
+                <!-- Today's threats -->
                 <div>
-                    <div class="top-threats-label">New Today</div>
-                    <div id="topThreats">
-                        <div style="color:var(--text-muted);font-size:12px;">Loading...</div>
-                    </div>
+                    <div class="sev-dist-label">New Today</div>
+                    <div id="topThreats"></div>
                 </div>
 
                 <!-- Scan history -->
                 <div class="dash-scan-history">
-                    <div class="top-threats-label">Scan History</div>
-                    <div class="scan-history" style="border:none;padding:0;">
-                        <ul class="scan-list" id="scanList">
-                            <li style="color:var(--text-muted);font-size:12px;">Loading...</li>
-                        </ul>
+                    <div class="sev-dist-label">Scan History</div>
+                    <div class="scan-history">
+                        <ul class="scan-list" id="scanList"></ul>
                     </div>
                 </div>
-
             </div>
         </div>
 
         <!-- ══ Section 2: Repositories ══════════════════════════════════════ -->
         <div class="section-pane" id="sectionRepos">
-
             <div class="section-header">
                 <span class="section-title">Repositories</span>
-                <span class="section-meta" id="reposMeta">–</span>
+                <span class="section-meta" id="reposMeta">&ndash;</span>
                 <button class="export-btn" onclick="window._exportCSV()">Export CSV</button>
             </div>
 
@@ -579,11 +709,11 @@
                 <input type="text" class="search-bar" id="repoSearch" placeholder="Search repos..." oninput="window._applyFilters()">
                 <select id="filterPlatform" onchange="window._applyFilters()">
                     <option value="">All Platforms</option>
-                    <option value="github">Github</option>
-                    <option value="gitlab">Gitlab</option>
+                    <option value="github">GitHub</option>
+                    <option value="gitlab">GitLab</option>
                     <option value="codeberg">Codeberg</option>
                     <option value="bitbucket">Bitbucket</option>
-                    <option value="sourceforge">Sourceforge</option>
+                    <option value="sourceforge">SourceForge</option>
                 </select>
                 <select id="filterSeverity" onchange="window._applyFilters()">
                     <option value="">All Severities</option>
@@ -592,13 +722,9 @@
                     <option value="MEDIUM">Medium</option>
                     <option value="LOW">Low</option>
                 </select>
-                <label>
-                    <input type="checkbox" id="filterDismissed" onchange="window._applyFilters()"> Show dismissed
-                </label>
-                <label>
-                    <input type="checkbox" id="filterHideForks" onchange="window._applyFilters()" checked> Hide forks
-                </label>
-                <button class="copy-list-btn" onclick="window._copyRepoList(this)">Copy repo list</button>
+                <label><input type="checkbox" id="filterDismissed" onchange="window._applyFilters()"> Show dismissed</label>
+                <label><input type="checkbox" id="filterHideForks" onchange="window._applyFilters()" checked> Hide forks</label>
+                <button class="copy-list-btn" onclick="window._copyRepoList(this)">Copy list</button>
             </div>
 
             <div class="findings-section">
@@ -615,19 +741,16 @@
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="reposBody">
-                        <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-secondary);">Loading repositories...</td></tr>
-                    </tbody>
+                    <tbody id="reposBody"></tbody>
                 </table>
             </div>
         </div>
 
         <!-- ══ Section 3: VT Files ═══════════════════════════════════════════ -->
         <div class="section-pane" id="sectionVt">
-
             <div class="section-header">
                 <span class="section-title">VT Files</span>
-                <span class="section-meta">Livehunt &amp; Retrohunt — SHA256 hashes are full-length, click to copy</span>
+                <span class="section-meta">Livehunt &amp; Retrohunt &mdash; SHA256 hashes are full-length, click to copy</span>
             </div>
 
             <div class="filter-bar">
@@ -638,9 +761,7 @@
                     <option value="MEDIUM">Medium</option>
                     <option value="LOW">Low</option>
                 </select>
-                <label>
-                    <input type="checkbox" id="vtFilterDismissed" onchange="window._applyVtFilters()"> Show dismissed
-                </label>
+                <label><input type="checkbox" id="vtFilterDismissed" onchange="window._applyVtFilters()"> Show dismissed</label>
                 <button class="copy-list-btn" onclick="window._copyVtHashes(this)">Copy SHA256 list</button>
             </div>
 
@@ -659,20 +780,17 @@
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="vtBody">
-                        <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-secondary);">Loading VT findings...</td></tr>
-                    </tbody>
+                    <tbody id="vtBody"></tbody>
                 </table>
             </div>
 
-            <!-- Covered IOCs — collapsible, below new findings -->
-            <div id="coveredSection" style="margin-top:8px;border-top:1px solid var(--edge);">
-                <div id="coveredHeader" onclick="window._toggleCovered()"
-                     style="display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;user-select:none;color:var(--text-secondary);font-family:var(--font-ui);font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;">
+            <!-- Covered IOCs — collapsible -->
+            <div id="coveredSection" style="border-top:1px solid var(--edge);display:none;">
+                <div class="covered-header" id="coveredHeader" onclick="window._toggleCovered()">
                     <span style="color:var(--sig-low);">&#9632;</span>
-                    COVERED IOCs — Published in TM Research
-                    <span id="coveredCount" style="background:var(--surface-2);padding:1px 8px;border-radius:10px;font-family:var(--font-data);">0</span>
-                    <span id="coveredChevron" style="margin-left:auto;font-size:10px;">▶</span>
+                    Covered IOCs &mdash; Published in TM Research
+                    <span class="covered-count" id="coveredCount">0</span>
+                    <span class="covered-chevron" id="coveredChevron">&#9654;</span>
                 </div>
                 <div id="coveredBody" style="display:none;">
                     <table class="findings-table" id="coveredTable">
@@ -689,9 +807,7 @@
                                 <th>Actions</th>
                             </tr>
                         </thead>
-                        <tbody id="coveredBody_table">
-                            <tr><td colspan="9" style="text-align:center;padding:20px;color:var(--text-secondary);">Loading covered IOCs...</td></tr>
-                        </tbody>
+                        <tbody id="coveredBody_table"></tbody>
                     </table>
                 </div>
             </div>
@@ -700,139 +816,81 @@
     </main>
 </div>
 
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<!-- ── Application Logic ─────────────────────────────────────────────────── -->
 <script type="module">
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
+// ── Constants ────────────────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://nsjkrclfmetmjzpnqjjm.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zamtyY2xmbWV0bWp6cG5xamptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyODM2NjcsImV4cCI6MjA5MDg1OTY2N30.s6v8bho59ysk5NJacKAA69jb63qiketZQnT6DaNO1K4';
 const REPO_PLATFORMS = ['github','gitlab','codeberg','bitbucket','sourceforge'];
 const VT_PLATFORMS   = ['vt_livehunt','vt_retrohunt','vt_known_ioc'];
-const SEV_ORDER      = ['CRITICAL','HIGH','MEDIUM','LOW'];
 
-// 115 already-tracked repos
 const ALREADY_LISTED = new Set([
-  "0PeterAdel/ClaudeCode-Leak",
-  "182slash/Claude",
-  "3kh0/claude-code",
-  "5tarlight/lcc",
-  "760704887/claude-code-sourcemap",
-  "AnukarOP/claude-code-leaked",
-  "Bo1202/claude-code-source",
-  "CHRITH3/leaked-claude-code",
-  "CnOxx1/claude-code",
-  "CodingWorld-007/claw-agent-guide",
-  "Corleanus/claude-code-leaked",
-  "Cshaoguang/claude-code-sourcemap",
-  "GNSubrahmanyam/leaked-claude-code",
-  "Gorav22/Claude-code-leaked",
-  "Heipiao/leaked-claude-code",
-  "HildaM/claude-code-leaked",
-  "InlitX/claude-code-source",
-  "JamesFireStarter13/claude-code",
-  "Kawaii-GPT-ai/KawaiiGPT",
-  "KhaosLee/leaked-claude-code",
-  "LTX-desktop/LTX-2.3",
-  "Manick94/claude_source_leaked_code",
-  "Matloob11/Claude-code-leaked",
-  "Mazen-wedaa/leaked-claude-code",
-  "MikeDevBeddo/leaked-claude-code-vv",
-  "Misterbra/claude-code-exposed",
-  "MonsterKey/claude-code-leaked",
-  "Moskimla/leaked-claude-code",
-  "NguyenThucTrongNhan/clone-claudlev2",
-  "OpenPayhub/claude-pay",
-  "OtisChin/open-claude-code",
-  "PhanTranHung/claude-code",
-  "Pro-Fazendas/PROFAZENDAS---OpenClaude",
-  "Ramabhadram/Claude-Code-Leaked",
-  "Ramabhadram/Claude-Code-Leaked_2",
-  "Ramabhadram/Claude-Code-Leaked_3",
-  "Ramabhadram/Claude-Code-Leaked_4",
-  "RicardoPoleo/supposed-cc",
-  "SSPIV/anthropic-leaked-source-code",
-  "Shahfaisal0835/claude-source-code-leaks",
-  "ShoupingShan/leaked-claude-code",
-  "Shreyan1/claude-code-src-leaked",
-  "Shubhamdas27/Claude-Code-Leaked",
-  "SwiftSteed/Awesome-Claude-Code-Source-Code",
-  "Usamaliaquat123/Claude-Code-Source",
-  "VoicuTomut/leaked-claude-code",
-  "WenKai8688/claude-code-ha",
-  "ai-wormGPT/wormGPT",
-  "anilkeshwani/claude-code-leaked",
-  "aweyonhub/leaked-claude-code",
-  "bcefghj/Claude-Code-Source",
-  "brokerdelhan-beep/leaked-claude-code",
-  "chinna-naidu/leaked-claude-code",
-  "claude-ai-opus-4-6/claude-opus-4.6",
-  "codeaashu/claude-code-info",
-  "davccavalcante/claude-code-leaked",
-  "davidpuziol/claude-code",
-  "dazong9275-prog/leaked-claude-code",
-  "ddshub1/Claude-Code-Source-Code",
-  "ecosys2026/claude-source-code",
-  "enoola/claude-code_leaked-20260401",
-  "fabioeducacross/leaked-claude-code",
-  "fattail4477/claw-decode",
-  "future-labs-narviz/claude-code-leaked",
-  "hlwht/claude-code",
-  "hmkne36/claude-code-leaked-source",
-  "i24hour/Claude-code-leaked",
-  "ikandali/leaked-claude-code",
-  "imrancoder786/Leaked-claude-code",
-  "ishanvaidya01/claude-leaked",
-  "itopensourceafrica/leaked-claude-code",
-  "jeffy0729/leaked-claude-code",
-  "jiahuangzheng8-tech/claude-code-haha",
-  "jimtracy1007/claude-code-leaked",
-  "kodaneflash/leaked-original-claude-code",
-  "lalitaditya04/leaked-claude-code",
-  "lanjingling/claude-code-leaked",
-  "leaked-claude-code/leaked-claude-code",
-  "loveychen/claude-code-leaked",
-  "makeouthillx32/leaked-claude-code",
-  "minhlucvan/claude-code-wiki",
-  "my3jie/ai-edu",
-  "my3jie/civil-engineering-cloud-claude-code-source-v2.1.88",
-  "my3jie/claude-code",
-  "my3jie/claude-code2",
-  "my3jie/claw-code",
-  "my3jie/leaked-claude-code",
-  "not-agent/leaked-claude-code",
-  "nvd11/xinmi-ide-code",
-  "nvidia-nemoclaw/NemoClaw",
-  "omtripathi52/clawc",
-  "openlang-cn/claude-code-run",
-  "opensourceclaude/communityclaude",
-  "paulmarinos/leaked-claude-code",
-  "princearoraaws/leaked-claude-code",
-  "randy0120/anthropic-leaked-source-code-backup",
-  "rayzhux/claude-code-source-leak",
-  "realtime-voice-changer-app/realtime-voice-changer",
-  "saurav-shakya/Claude_Code-_Source_Code",
-  "scmishra-cse/claude-code",
-  "seanyoungw/harness-decoded",
-  "senthils007/Claude-Leaked-Code",
-  "sheiddy/claude-code-leaked",
-  "shun-fukuchi-homula/leaked-claude-code",
-  "thivankasarathchandra/leaked-claude-code",
-  "varun-ahlawat/claude-code-src-code",
-  "visheshsanghvi112/claude-code-leaked",
-  "xianzong1981/leaked-claude-code",
-  "xiaoping4220/claude-code-2188",
-  "xyhStruggler/claude-code",
-  "yanisvdc/why-claude-code-leaked",
-  "yasinldev/leaked-claude-code",
-  "yezhe18/claude-code-sourcemap",
-  "yu441374-oss/claw-code",
-  "zhouying-1218/claude-code001",
+  "0PeterAdel/ClaudeCode-Leak","182slash/Claude","3kh0/claude-code","5tarlight/lcc",
+  "760704887/claude-code-sourcemap","AnukarOP/claude-code-leaked","Bo1202/claude-code-source",
+  "CHRITH3/leaked-claude-code","CnOxx1/claude-code","CodingWorld-007/claw-agent-guide",
+  "Corleanus/claude-code-leaked","Cshaoguang/claude-code-sourcemap",
+  "GNSubrahmanyam/leaked-claude-code","Gorav22/Claude-code-leaked",
+  "Heipiao/leaked-claude-code","HildaM/claude-code-leaked","InlitX/claude-code-source",
+  "JamesFireStarter13/claude-code","Kawaii-GPT-ai/KawaiiGPT",
+  "KhaosLee/leaked-claude-code","LTX-desktop/LTX-2.3",
+  "Manick94/claude_source_leaked_code","Matloob11/Claude-code-leaked",
+  "Mazen-wedaa/leaked-claude-code","MikeDevBeddo/leaked-claude-code-vv",
+  "Misterbra/claude-code-exposed","MonsterKey/claude-code-leaked",
+  "Moskimla/leaked-claude-code","NguyenThucTrongNhan/clone-claudlev2",
+  "OpenPayhub/claude-pay","OtisChin/open-claude-code","PhanTranHung/claude-code",
+  "Pro-Fazendas/PROFAZENDAS---OpenClaude","Ramabhadram/Claude-Code-Leaked",
+  "Ramabhadram/Claude-Code-Leaked_2","Ramabhadram/Claude-Code-Leaked_3",
+  "Ramabhadram/Claude-Code-Leaked_4","RicardoPoleo/supposed-cc",
+  "SSPIV/anthropic-leaked-source-code","Shahfaisal0835/claude-source-code-leaks",
+  "ShoupingShan/leaked-claude-code","Shreyan1/claude-code-src-leaked",
+  "Shubhamdas27/Claude-Code-Leaked","SwiftSteed/Awesome-Claude-Code-Source-Code",
+  "Usamaliaquat123/Claude-Code-Source","VoicuTomut/leaked-claude-code",
+  "WenKai8688/claude-code-ha","ai-wormGPT/wormGPT","anilkeshwani/claude-code-leaked",
+  "aweyonhub/leaked-claude-code","bcefghj/Claude-Code-Source",
+  "brokerdelhan-beep/leaked-claude-code","chinna-naidu/leaked-claude-code",
+  "claude-ai-opus-4-6/claude-opus-4.6","codeaashu/claude-code-info",
+  "davccavalcante/claude-code-leaked","davidpuziol/claude-code",
+  "dazong9275-prog/leaked-claude-code","ddshub1/Claude-Code-Source-Code",
+  "ecosys2026/claude-source-code","enoola/claude-code_leaked-20260401",
+  "fabioeducacross/leaked-claude-code","fattail4477/claw-decode",
+  "future-labs-narviz/claude-code-leaked","hlwht/claude-code",
+  "hmkne36/claude-code-leaked-source","i24hour/Claude-code-leaked",
+  "ikandali/leaked-claude-code","imrancoder786/Leaked-claude-code",
+  "ishanvaidya01/claude-leaked","itopensourceafrica/leaked-claude-code",
+  "jeffy0729/leaked-claude-code","jiahuangzheng8-tech/claude-code-haha",
+  "jimtracy1007/claude-code-leaked","kodaneflash/leaked-original-claude-code",
+  "lalitaditya04/leaked-claude-code","lanjingling/claude-code-leaked",
+  "leaked-claude-code/leaked-claude-code","loveychen/claude-code-leaked",
+  "makeouthillx32/leaked-claude-code","minhlucvan/claude-code-wiki",
+  "my3jie/ai-edu","my3jie/civil-engineering-cloud-claude-code-source-v2.1.88",
+  "my3jie/claude-code","my3jie/claude-code2","my3jie/claw-code",
+  "my3jie/leaked-claude-code","not-agent/leaked-claude-code","nvd11/xinmi-ide-code",
+  "nvidia-nemoclaw/NemoClaw","omtripathi52/clawc","openlang-cn/claude-code-run",
+  "opensourceclaude/communityclaude","paulmarinos/leaked-claude-code",
+  "princearoraaws/leaked-claude-code","randy0120/anthropic-leaked-source-code-backup",
+  "rayzhux/claude-code-source-leak","realtime-voice-changer-app/realtime-voice-changer",
+  "saurav-shakya/Claude_Code-_Source_Code","scmishra-cse/claude-code",
+  "seanyoungw/harness-decoded","senthils007/Claude-Leaked-Code",
+  "sheiddy/claude-code-leaked","shun-fukuchi-homula/leaked-claude-code",
+  "thivankasarathchandra/leaked-claude-code","varun-ahlawat/claude-code-src-code",
+  "visheshsanghvi112/claude-code-leaked","xianzong1981/leaked-claude-code",
+  "xiaoping4220/claude-code-2188","xyhStruggler/claude-code",
+  "yanisvdc/why-claude-code-leaked","yasinldev/leaked-claude-code",
+  "yezhe18/claude-code-sourcemap","yu441374-oss/claw-code","zhouying-1218/claude-code001",
 ]);
 
-
+// ── Supabase client ──────────────────────────────────────────────────────────
 const db = createClient(SUPABASE_URL, SUPABASE_ANON);
 let sortDirMap = { repos: -1, vt: -1 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
 function timeAgo(iso) {
     if (!iso) return '';
     const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -840,27 +898,36 @@ function timeAgo(iso) {
     if (min < 60) return min + 'm ago';
     const hr = Math.floor(min / 60);
     if (hr < 24)  return hr + 'h ago';
-    return Math.floor(hr/24) + 'd ago';
+    return Math.floor(hr / 24) + 'd ago';
 }
-function isNew(iso) { return iso && (Date.now() - new Date(iso).getTime()) < 86400000; }
 
-// ── Section switching ─────────────────────────────────────────────────────────
+function todayLabel() { return new Date().toLocaleDateString('en-US'); }
+
+// ── Section switching ────────────────────────────────────────────────────────
 window._switchSection = function(section) {
     document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.section-pane').forEach(p => p.classList.remove('active'));
-    document.getElementById('nav' + section[0].toUpperCase() + section.slice(1)).classList.add('active');
-    document.getElementById('section' + section[0].toUpperCase() + section.slice(1)).classList.add('active');
+    const cap = section[0].toUpperCase() + section.slice(1);
+    $('nav' + cap).classList.add('active');
+    $('section' + cap).classList.add('active');
 };
 
-// ── Error ─────────────────────────────────────────────────────────────────────
-function showError(msg) { document.getElementById('errorText').textContent=msg; document.getElementById('errorBanner').style.display='block'; }
-function hideError() { document.getElementById('errorBanner').style.display='none'; }
+// ── Error ────────────────────────────────────────────────────────────────────
+function showError(msg) { $('errorText').textContent = msg; $('errorBanner').style.display = 'block'; }
+function hideError()    { $('errorBanner').style.display = 'none'; }
 
-// ── Fetch ─────────────────────────────────────────────────────────────────────
+// ── Toast ────────────────────────────────────────────────────────────────────
+function showToast(message, type = 'info') {
+    const t = document.createElement('div');
+    t.className = 'toast ' + type;
+    t.textContent = message;
+    $('toast-container').appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+}
+
+// ── Data fetchers ────────────────────────────────────────────────────────────
 async function fetchFindings() {
-    // Supabase caps at 1000 rows per request — paginate to get all
-    let all = [];
-    let from = 0;
+    let all = [], from = 0;
     const pageSize = 1000;
     while (true) {
         const { data, error } = await db.from('findings').select('*')
@@ -874,113 +941,105 @@ async function fetchFindings() {
     }
     return all;
 }
+
 async function fetchScans() {
-    const { data, error } = await db.from('scans').select('*').order('started_at',{ascending:false}).limit(10);
+    const { data, error } = await db.from('scans').select('*')
+        .order('started_at', { ascending: false }).limit(10);
     if (error) throw new Error(error.message);
     return data || [];
 }
 
-// ── Stats ─────────────────────────────────────────────────────────────────────
+// ── Stats ────────────────────────────────────────────────────────────────────
 function computeStats(findings) {
-    let total=0, critical=0, high=0, medium=0, low=0;
+    let total = 0, critical = 0, high = 0, medium = 0, low = 0;
     const platforms = new Set();
     for (const f of findings) {
         if (f.dismissed) continue;
         total++; platforms.add(f.platform);
-        if      (f.severity==='CRITICAL') critical++;
-        else if (f.severity==='HIGH')     high++;
-        else if (f.severity==='MEDIUM')   medium++;
-        else                              low++;
+        if      (f.severity === 'CRITICAL') critical++;
+        else if (f.severity === 'HIGH')     high++;
+        else if (f.severity === 'MEDIUM')   medium++;
+        else                                low++;
     }
     return { total, critical, high, medium, low, platforms: platforms.size };
 }
 
 function renderStats(s) {
-    // Main stat cards
-    document.getElementById('statTotal').textContent     = s.total;
-    document.getElementById('statCritical').textContent  = s.critical;
-    document.getElementById('statHigh').textContent      = s.high;
-    document.getElementById('statMedium').textContent    = s.medium;
-    document.getElementById('statPlatforms').textContent = s.platforms + '/6';
+    $('statTotal').textContent     = s.total;
+    $('statCritical').textContent  = s.critical;
+    $('statHigh').textContent      = s.high;
+    $('statMedium').textContent    = s.medium;
+    $('statPlatforms').textContent = s.platforms + '/6';
 
-    // Sidebar severity breakdown
-    document.getElementById('sideCritical').textContent = s.critical;
-    document.getElementById('sideHigh').textContent     = s.high;
-    document.getElementById('sideMedium').textContent   = s.medium;
-    document.getElementById('sideLow').textContent      = s.total - s.critical - s.high - s.medium;
+    $('sideCritical').textContent = s.critical;
+    $('sideHigh').textContent     = s.high;
+    $('sideMedium').textContent   = s.medium;
+    $('sideLow').textContent      = s.low;
 
-    // Severity distribution bar
     const t = s.total || 1;
-    const pct = (n) => (n / t * 100).toFixed(1) + '%';
-    document.getElementById('distCritical').style.width = pct(s.critical);
-    document.getElementById('distHigh').style.width     = pct(s.high);
-    document.getElementById('distMedium').style.width   = pct(s.medium);
-    document.getElementById('distLow').style.width      = pct(s.total - s.critical - s.high - s.medium);
+    const pct = n => (n / t * 100).toFixed(1) + '%';
+    $('distCritical').style.width = pct(s.critical);
+    $('distHigh').style.width     = pct(s.high);
+    $('distMedium').style.width   = pct(s.medium);
+    $('distLow').style.width      = pct(s.low);
 
-    // Distribution legend counts
-    const low = s.total - s.critical - s.high - s.medium;
-    document.getElementById('legCritical').textContent = s.critical;
-    document.getElementById('legHigh').textContent     = s.high;
-    document.getElementById('legMedium').textContent   = s.medium;
-    document.getElementById('legLow').textContent      = low;
+    $('legCritical').textContent = s.critical;
+    $('legHigh').textContent     = s.high;
+    $('legMedium').textContent   = s.medium;
+    $('legLow').textContent      = s.low;
 }
 
-// ── Platform bar ──────────────────────────────────────────────────────────────
+// ── Platform bar ─────────────────────────────────────────────────────────────
 function renderPlatformBar(findings) {
     const counts = {};
     for (const f of findings)
         if (!f.dismissed && REPO_PLATFORMS.includes(f.platform))
-            counts[f.platform] = (counts[f.platform]||0)+1;
-    const bar = document.getElementById('platformBar');
-    bar.replaceChildren(...REPO_PLATFORMS.map(p => {
+            counts[f.platform] = (counts[f.platform] || 0) + 1;
+
+    $('platformBar').replaceChildren(...REPO_PLATFORMS.map(p => {
         const count = counts[p] || 0;
         const chip = document.createElement('div');
-        chip.className = 'platform-chip'; chip.id = 'chip-'+p;
+        chip.className = 'platform-chip';
         const dot = document.createElement('span');
-        dot.className = count>0?'dot active':'dot'; dot.id='dot-'+p;
+        dot.className = count > 0 ? 'dot active' : 'dot';
         const name = document.createElement('span');
-        name.textContent = p[0].toUpperCase()+p.slice(1);
+        name.textContent = p[0].toUpperCase() + p.slice(1);
         const cnt = document.createElement('span');
-        cnt.className='count'; cnt.id='count-'+p; cnt.textContent=count>0?count:'-';
-        chip.append(dot,name,cnt); return chip;
+        cnt.className = 'count';
+        cnt.textContent = count > 0 ? count : '\u2013';
+        chip.append(dot, name, cnt);
+        return chip;
     }));
 }
 
-// ── Nav counts ────────────────────────────────────────────────────────────────
+// ── Nav counts ───────────────────────────────────────────────────────────────
 function updateNavCounts(findings) {
-    const repoCount = findings.filter(f=>!f.dismissed&&REPO_PLATFORMS.includes(f.platform)).length;
-    const vtCount   = findings.filter(f=>!f.dismissed&&VT_PLATFORMS.includes(f.platform)).length;
-    document.getElementById('navCountRepos').textContent = repoCount;
-    document.getElementById('navCountVt').textContent    = vtCount;
-    document.getElementById('reposMeta').textContent     = repoCount + ' findings';
+    const repoCount = findings.filter(f => !f.dismissed && REPO_PLATFORMS.includes(f.platform)).length;
+    const vtCount   = findings.filter(f => !f.dismissed && VT_PLATFORMS.includes(f.platform)).length;
 
-    // Campaign card stats
-    const el = id => document.getElementById(id);
-    el('campRepos').textContent = repoCount;
-    el('campVt').textContent    = vtCount;
+    $('navCountRepos').textContent = repoCount;
+    $('navCountVt').textContent    = vtCount;
+    $('reposMeta').textContent     = repoCount + ' findings';
+    $('campRepos').textContent     = repoCount;
+    $('campVt').textContent        = vtCount;
 
-    // "New today" count
-    const todayStr = new Date().toLocaleDateString('en-US');
+    const td = todayLabel();
     const newToday = findings.filter(f => {
         const d = f.repo_created_at || f.first_seen;
-        return d && new Date(d).toLocaleDateString('en-US') === todayStr && !f.dismissed;
+        return d && new Date(d).toLocaleDateString('en-US') === td && !f.dismissed;
     }).length;
-    el('campToday').textContent = newToday;
+    $('campToday').textContent = newToday;
 
-    // Sidebar "new today" badge
-    const navNew = el('navNewToday');
-    if (navNew && newToday > 0) {
-        navNew.textContent = '+' + newToday;
-        navNew.style.display = 'inline';
-    }
+    const navNew = $('navNewToday');
+    if (newToday > 0) { navNew.textContent = '+' + newToday; navNew.style.display = 'inline'; }
+    else { navNew.style.display = 'none'; }
 }
 
-// ── 7-Day Timeline ────────────────────────────────────────────────────────────
+// ── 7-Day Timeline ───────────────────────────────────────────────────────────
 function renderTimeline(findings) {
-    const container = document.getElementById('timeline');
+    const container = $('timeline');
     const repoFindings = findings.filter(f => REPO_PLATFORMS.includes(f.platform) && !f.dismissed);
 
-    // Group by date (last 7 days)
     const days = [];
     for (let i = 0; i < 7; i++) {
         const d = new Date(); d.setDate(d.getDate() - i);
@@ -997,48 +1056,33 @@ function renderTimeline(findings) {
     });
 
     const maxCount = Math.max(...Object.values(counts), 1);
-
-    const rows = days.map(day => {
+    container.replaceChildren(...days.map(day => {
         const count = counts[day];
         const pct = Math.max((count / maxCount) * 100, count > 0 ? 3 : 0);
-        const row = document.createElement('div');
-        row.className = 'timeline-row';
-
-        const label = document.createElement('span');
-        label.className = 'timeline-label'; label.textContent = day;
-
-        const track = document.createElement('div');
-        track.className = 'timeline-bar-track';
-        const bar = document.createElement('div');
-        bar.className = 'timeline-bar mixed';
-        bar.style.width = pct + '%';
+        const row = document.createElement('div');   row.className = 'timeline-row';
+        const label = document.createElement('span'); label.className = 'timeline-label'; label.textContent = day;
+        const track = document.createElement('div');  track.className = 'timeline-bar-track';
+        const bar = document.createElement('div');    bar.className = 'timeline-bar mixed'; bar.style.width = pct + '%';
         track.appendChild(bar);
-
-        const cnt = document.createElement('span');
-        cnt.className = 'timeline-count'; cnt.textContent = count || '';
-
+        const cnt = document.createElement('span');   cnt.className = 'timeline-count'; cnt.textContent = count || '';
         row.append(label, track, cnt);
         return row;
-    });
-
-    container.replaceChildren(...rows);
+    }));
 }
 
-// ── Top threats (TODAY only) ──────────────────────────────────────────────────
+// ── Top threats (TODAY only) ─────────────────────────────────────────────────
 function renderTopThreats(findings) {
-    const container = document.getElementById('topThreats');
-
-    // Filter to repos created TODAY only
-    const todayStr = new Date().toLocaleDateString('en-US');
+    const container = $('topThreats');
+    const td = todayLabel();
     const todayFindings = findings.filter(f => {
         if (f.dismissed) return false;
         const d = f.repo_created_at || f.first_seen;
-        return d && new Date(d).toLocaleDateString('en-US') === todayStr;
+        return d && new Date(d).toLocaleDateString('en-US') === td;
     }).slice(0, 10);
 
     if (!todayFindings.length) {
         const msg = document.createElement('div');
-        msg.style.cssText = 'color:var(--text-muted);font-size:12px;';
+        msg.style.cssText = 'font-family:var(--font-data);color:var(--text-ghost);font-size:11px;';
         msg.textContent = 'No new repos created today. Check back after the next scan.';
         container.replaceChildren(msg);
         return;
@@ -1046,387 +1090,493 @@ function renderTopThreats(findings) {
 
     container.replaceChildren(...todayFindings.map(f => {
         const row = document.createElement('div');
-        row.className = 'threat-row'; row.dataset.severity = f.severity||'';
-
+        row.className = 'threat-row'; row.dataset.severity = f.severity || '';
         const pill = document.createElement('span');
         pill.className = 'score-pill'; pill.textContent = f.score;
-
         const badge = document.createElement('span');
-        badge.className = 'badge-platform threat-platform ' + (f.platform||'');
-        badge.textContent = f.platform||'';
-
+        badge.className = 'badge-platform threat-platform ' + (f.platform || '');
+        badge.textContent = f.platform || '';
         const name = document.createElement('span');
-        name.className = 'threat-name'; name.textContent = f.repo_name||'';
-        name.title = f.repo_name||'';
-
+        name.className = 'threat-name'; name.textContent = f.repo_name || ''; name.title = f.repo_name || '';
         const link = document.createElement('a');
-        link.href = f.repo_url||'#'; link.target='_blank';
-        link.style.cssText='font-size:11px;color:var(--text-secondary);text-decoration:none;margin-left:auto;';
-        link.textContent='↗';
-        link.onclick = e => e.stopPropagation();
-
+        link.href = f.repo_url || '#'; link.target = '_blank';
+        link.style.cssText = 'font-size:11px;color:var(--text-ghost);text-decoration:none;margin-left:auto;';
+        link.textContent = '\u2197'; link.onclick = e => e.stopPropagation();
         row.append(pill, badge, name, link);
-        row.onclick = () => { window._switchSection('repos'); };
+        row.onclick = () => window._switchSection('repos');
         return row;
     }));
 }
 
-// ── Copy hash ─────────────────────────────────────────────────────────────────
-window._copyHash = function(hash, btn) {
-    navigator.clipboard.writeText(hash).then(() => {
-        btn.textContent='copied!'; btn.classList.add('copied');
-        setTimeout(()=>{ btn.textContent='copy'; btn.classList.remove('copied'); },1500);
-    });
-};
-
-// ── Dismiss ───────────────────────────────────────────────────────────────────
+// ── Dismiss ──────────────────────────────────────────────────────────────────
 window._dismiss = async function(id, btn) {
-    // Use server-side RPC (SECURITY DEFINER) to bypass RLS for dismiss
     const { error } = await db.rpc('dismiss_finding', { finding_id: id });
-    if (error) { showToast('Dismiss failed: '+error.message, 'error'); return; }
+    if (error) { showToast('Dismiss failed: ' + error.message, 'error'); return; }
     const mainTr = btn.closest('tr');
     if (mainTr) {
-        mainTr.dataset.dismissed = 'true';
-        mainTr.style.display = 'none';
+        mainTr.dataset.dismissed = 'true'; mainTr.style.display = 'none';
         const det = mainTr.nextElementSibling;
-        if (det && !det.classList.contains('finding-row')) det.style.display='none';
+        if (det && !det.classList.contains('finding-row')) det.style.display = 'none';
     }
     showToast('Finding dismissed', 'success');
 };
 
-// ── Row expand ────────────────────────────────────────────────────────────────
+// ── Copy hash ────────────────────────────────────────────────────────────────
+window._copyHash = function(hash, btn) {
+    navigator.clipboard.writeText(hash).then(() => {
+        btn.textContent = 'copied!'; btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'copy'; btn.classList.remove('copied'); }, 1500);
+    });
+};
+
+// ── Row expand ───────────────────────────────────────────────────────────────
 window._toggleDetails = function(id) {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('show');
 };
 
-// ── Build repo row ────────────────────────────────────────────────────────────
+// ── Build repo row ───────────────────────────────────────────────────────────
 function buildRepoRow(f, i) {
-    const detailId  = 'r-'+i;
-    const assets    = Array.isArray(f.release_assets)  ? f.release_assets  : [];
-    const suspFiles = Array.isArray(f.suspicious_files) ? f.suspicious_files : [];
-    const reasons   = Array.isArray(f.reasons)          ? f.reasons          : [];
+    const detailId  = 'r-' + i;
+    const assets    = Array.isArray(f.release_assets)   ? f.release_assets   : [];
+    const suspFiles = Array.isArray(f.suspicious_files)  ? f.suspicious_files  : [];
+    const reasons   = Array.isArray(f.reasons)           ? f.reasons           : [];
 
     const tr = document.createElement('tr');
     tr.className = 'finding-row';
-    tr.dataset.platform  = f.platform||'';
-    tr.dataset.severity  = f.severity||'';
-    tr.dataset.dismissed = f.dismissed?'true':'false';
+    tr.dataset.platform  = f.platform || '';
+    tr.dataset.severity  = f.severity || '';
+    tr.dataset.dismissed = f.dismissed ? 'true' : 'false';
     tr.dataset.score     = String(f.score);
-    // Detect forks: reasons contain "fork of leaked-claude-code" or repo name ends with /leaked-claude-code
-    const isFork = (Array.isArray(f.reasons) && f.reasons.some(r => r.includes('fork of leaked-claude-code'))) ||
-                   (f.repo_name && f.repo_name.endsWith('/leaked-claude-code'));
-    tr.dataset.fork = isFork ? 'true' : 'false';
+    tr.dataset.fork = (reasons.some(r => r.includes('fork of leaked-claude-code'))
+        || (f.repo_name && f.repo_name.endsWith('/leaked-claude-code'))) ? 'true' : 'false';
     tr.onclick = () => window._toggleDetails(detailId);
 
-    // Platform (col 0 — severity border here via CSS)
+    // Platform
     const tdP = document.createElement('td');
     const pb  = document.createElement('span');
-    pb.className = 'badge-platform '+(f.platform||''); pb.textContent=f.platform||'';
+    pb.className = 'badge-platform ' + (f.platform || ''); pb.textContent = f.platform || '';
     tdP.appendChild(pb); tr.appendChild(tdP);
 
-    // Repository + description
+    // Repo + desc
     const tdR = document.createElement('td');
     const a   = document.createElement('a');
-    a.href=f.repo_url||'#'; a.target='_blank'; a.className='repo-link';
-    a.textContent=f.repo_name||''; a.onclick=e=>e.stopPropagation();
+    a.href = f.repo_url || '#'; a.target = '_blank'; a.className = 'repo-link';
+    a.textContent = f.repo_name || ''; a.onclick = e => e.stopPropagation();
     tdR.appendChild(a);
     if (f.description) {
         tdR.appendChild(document.createElement('br'));
-        const sm=document.createElement('small'); sm.style.color='var(--text-muted)';
-        sm.textContent=f.description.slice(0,80)+(f.description.length>80?'…':'');
+        const sm = document.createElement('small');
+        sm.textContent = f.description.slice(0, 80) + (f.description.length > 80 ? '\u2026' : '');
         tdR.appendChild(sm);
     }
     tr.appendChild(tdR);
 
-    // Score + Severity (combined)
-    const tdS=document.createElement('td');
-    const sb=document.createElement('span'); sb.className='badge badge-'+(f.severity||'').toLowerCase();
-    sb.textContent=f.score + ' ' + (f.severity||'');
+    // Score + Severity
+    const tdS = document.createElement('td');
+    const sb  = document.createElement('span');
+    sb.className = 'badge badge-' + (f.severity || '').toLowerCase();
+    sb.textContent = f.score + ' ' + (f.severity || '');
     tdS.appendChild(sb); tr.appendChild(tdS);
 
     // Stars
-    const tdSt=document.createElement('td'); tdSt.textContent=String(f.stars??0); tr.appendChild(tdSt);
+    const tdSt = document.createElement('td');
+    tdSt.className = 'mono'; tdSt.textContent = String(f.stars ?? 0); tr.appendChild(tdSt);
 
     // Releases
-    const tdRel=document.createElement('td');
-    tdRel.textContent=assets.length ? assets.length+' asset'+(assets.length!==1?'s':'') : '–';
+    const tdRel = document.createElement('td');
+    tdRel.className = 'mono';
+    tdRel.textContent = assets.length ? assets.length + ' asset' + (assets.length !== 1 ? 's' : '') : '\u2013';
     tr.appendChild(tdRel);
 
-    // Listed indicator
-    const tdListed=document.createElement('td');
+    // Listed
+    const tdListed = document.createElement('td');
     if (ALREADY_LISTED.has(f.repo_name)) {
-        const lb=document.createElement('span'); lb.className='badge-listed'; lb.textContent='LISTED';
+        const lb = document.createElement('span'); lb.className = 'badge-listed'; lb.textContent = 'LISTED';
         tdListed.appendChild(lb);
     }
     tr.appendChild(tdListed);
 
-    // First Seen
-    const tdDate=document.createElement('td');
-    tdDate.className='mono'; tdDate.style.fontSize='11px';
-    const _dateVal = f.repo_created_at || f.first_seen;
-    if (_dateVal) {
-        const dt=new Date(_dateVal);
-        tdDate.textContent=dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-        tdDate.title=dt.toISOString();
-    } else { tdDate.textContent='–'; }
+    // Created
+    const tdDate = document.createElement('td'); tdDate.className = 'mono';
+    const _dv = f.repo_created_at || f.first_seen;
+    if (_dv) {
+        const dt = new Date(_dv);
+        tdDate.textContent = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        tdDate.title = dt.toISOString();
+    } else { tdDate.textContent = '\u2013'; }
     tr.appendChild(tdDate);
 
-    // Actions — Open + Dismiss
-    const tdAct=document.createElement('td');
-    const btnGrp=document.createElement('div'); btnGrp.className='btn-group';
-    const openBtn=document.createElement('a'); openBtn.className='action-btn';
-    openBtn.href=f.repo_url||'#'; openBtn.target='_blank'; openBtn.textContent='Open';
-    openBtn.onclick=e=>e.stopPropagation();
-    const dimBtn=document.createElement('button'); dimBtn.className='action-btn danger';
-    dimBtn.textContent='Dismiss';
-    dimBtn.onclick=e=>{ e.stopPropagation(); window._dismiss(f.id,dimBtn); };
-    btnGrp.append(openBtn, dimBtn);
-    tdAct.appendChild(btnGrp); tr.appendChild(tdAct);
+    // Actions
+    const tdAct = document.createElement('td');
+    const bg    = document.createElement('div'); bg.className = 'btn-group';
+    const ob    = document.createElement('a');
+    ob.className = 'action-btn'; ob.href = f.repo_url || '#'; ob.target = '_blank';
+    ob.textContent = 'Open'; ob.onclick = e => e.stopPropagation();
+    const db2 = document.createElement('button');
+    db2.className = 'action-btn danger'; db2.textContent = 'Dismiss';
+    db2.onclick = e => { e.stopPropagation(); window._dismiss(f.id, db2); };
+    bg.append(ob, db2); tdAct.appendChild(bg); tr.appendChild(tdAct);
 
     // Detail row
-    const trDet=document.createElement('tr'); const tdDet=document.createElement('td');
-    tdDet.colSpan=8; tdDet.style.cssText='padding:0;border:none;';
-    const div=document.createElement('div'); div.className='row-details'; div.id=detailId;
-    const fh=document.createElement('h4'); fh.textContent='Flags ('+reasons.length+')'; div.appendChild(fh);
-    const ul=document.createElement('ul');
-    reasons.forEach(r=>{ const li=document.createElement('li'); li.textContent=r; ul.appendChild(li); });
-    if(!reasons.length){ const li=document.createElement('li'); li.style.color='var(--text-muted)'; li.textContent='No flags.'; ul.appendChild(li); }
+    const trDet = document.createElement('tr');
+    const tdDet = document.createElement('td');
+    tdDet.colSpan = 8; tdDet.style.cssText = 'padding:0;border:none;';
+    const div = document.createElement('div'); div.className = 'row-details'; div.id = detailId;
+
+    const fh = document.createElement('h4'); fh.textContent = 'Flags (' + reasons.length + ')'; div.appendChild(fh);
+    const ul = document.createElement('ul');
+    if (reasons.length) reasons.forEach(r => { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); });
+    else { const li = document.createElement('li'); li.style.color = 'var(--text-ghost)'; li.textContent = 'No flags.'; ul.appendChild(li); }
     div.appendChild(ul);
+
     if (assets.length) {
-        const ah=document.createElement('h4'); ah.textContent='Release Assets ('+assets.length+')'; div.appendChild(ah);
-        const tbl=document.createElement('table'); tbl.className='release-table';
-        tbl.innerHTML='<thead><tr><th>File</th><th>Size</th><th>Downloads</th><th>Tag</th></tr></thead>';
-        const tb=document.createElement('tbody');
-        assets.forEach(a=>{ const row=document.createElement('tr'); [a.name,(a.size_mb??0)+' MB',String(a.download_count??0),a.tag||''].forEach(v=>{ const td=document.createElement('td'); td.className='mono'; td.textContent=v; row.appendChild(td); }); tb.appendChild(row); });
+        const ah = document.createElement('h4'); ah.textContent = 'Release Assets (' + assets.length + ')'; div.appendChild(ah);
+        const tbl = document.createElement('table'); tbl.className = 'release-table';
+        const thead = document.createElement('thead'); const hrow = document.createElement('tr');
+        ['File','Size','Downloads','Tag'].forEach(t => { const th = document.createElement('th'); th.textContent = t; hrow.appendChild(th); });
+        thead.appendChild(hrow); tbl.appendChild(thead);
+        const tb = document.createElement('tbody');
+        assets.forEach(a => { const row = document.createElement('tr'); [a.name,(a.size_mb??0)+' MB',String(a.download_count??0),a.tag||''].forEach(v => { const td = document.createElement('td'); td.className = 'mono'; td.textContent = v; row.appendChild(td); }); tb.appendChild(row); });
         tbl.appendChild(tb); div.appendChild(tbl);
     }
     if (suspFiles.length) {
-        const sh=document.createElement('h4'); sh.textContent='Suspicious Files'; div.appendChild(sh);
-        const sul=document.createElement('ul'); suspFiles.forEach(sf=>{ const li=document.createElement('li'); li.className='mono'; li.textContent=sf; sul.appendChild(li); }); div.appendChild(sul);
+        const sh = document.createElement('h4'); sh.textContent = 'Suspicious Files'; div.appendChild(sh);
+        const sul = document.createElement('ul');
+        suspFiles.forEach(sf => { const li = document.createElement('li'); li.className = 'mono'; li.textContent = sf; sul.appendChild(li); });
+        div.appendChild(sul);
     }
-    const oh=document.createElement('h4'); oh.textContent='Owner Info'; div.appendChild(oh);
-    const oul=document.createElement('ul');
-    const oli=document.createElement('li'); oli.textContent='Login: '; const oc=document.createElement('code'); oc.textContent=f.owner_login||'unknown'; oli.appendChild(oc); oul.appendChild(oli);
-    if(f.owner_age_days!=null){ const li=document.createElement('li'); li.textContent='Account age: '+f.owner_age_days+' days'; oul.appendChild(li); }
-    if(f.owner_pub_repos!=null){ const li=document.createElement('li'); li.textContent='Public repos: '+f.owner_pub_repos; oul.appendChild(li); }
+    const oh = document.createElement('h4'); oh.textContent = 'Owner Info'; div.appendChild(oh);
+    const oul = document.createElement('ul');
+    const oli = document.createElement('li'); oli.textContent = 'Login: ';
+    const oc = document.createElement('code'); oc.className = 'mono'; oc.textContent = f.owner_login || 'unknown';
+    oli.appendChild(oc); oul.appendChild(oli);
+    if (f.owner_age_days != null) { const li = document.createElement('li'); li.textContent = 'Account age: ' + f.owner_age_days + ' days'; oul.appendChild(li); }
+    if (f.owner_pub_repos != null) { const li = document.createElement('li'); li.textContent = 'Public repos: ' + f.owner_pub_repos; oul.appendChild(li); }
     div.appendChild(oul);
     tdDet.appendChild(div); trDet.appendChild(tdDet);
     return [tr, trDet];
 }
 
-// ── Render repos ──────────────────────────────────────────────────────────────
+// ── Render repos ─────────────────────────────────────────────────────────────
 function renderRepos(findings) {
-    const tbody = document.getElementById('reposBody');
-    const repos  = findings.filter(f=>REPO_PLATFORMS.includes(f.platform));
+    const tbody = $('reposBody');
+    const repos = findings.filter(f => REPO_PLATFORMS.includes(f.platform));
+
     if (!repos.length) {
-        const tr=document.createElement('tr'); const td=document.createElement('td');
-        td.colSpan=8; const em=document.createElement('div'); em.className='empty-state';
-        const ic=document.createElement('div'); ic.className='icon'; ic.textContent='\u{1F50D}';
-        const p=document.createElement('p'); p.textContent='No repository findings yet. Scans run hourly via GitHub Actions.';
-        em.append(ic,p); td.appendChild(em); tr.appendChild(td); tbody.replaceChildren(tr); return;
+        const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 8;
+        const em = document.createElement('div'); em.className = 'empty-state';
+        const ic = document.createElement('div'); ic.className = 'icon'; ic.textContent = '\u{1F50D}';
+        const p = document.createElement('p'); p.textContent = 'No repository findings yet. Scans run hourly via GitHub Actions.';
+        em.append(ic, p); td.appendChild(em); tr.appendChild(td); tbody.replaceChildren(tr); return;
     }
-    // Sort by repo_created_at descending (newest repos first)
-    repos.sort((a,b) => {
+
+    repos.sort((a, b) => {
         const da = (a.repo_created_at || a.first_seen) ? new Date(a.repo_created_at || a.first_seen).getTime() : 0;
-        const db = (b.repo_created_at || b.first_seen) ? new Date(b.repo_created_at || b.first_seen).getTime() : 0;
-        return db - da;
+        const dB = (b.repo_created_at || b.first_seen) ? new Date(b.repo_created_at || b.first_seen).getTime() : 0;
+        return dB - da;
     });
 
-    // Group by repo creation date — each day gets a section header
     const nodes = [];
     let currentDateLabel = '';
-    repos.forEach((f,i) => {
+    repos.forEach((f, i) => {
         const dt = (f.repo_created_at || f.first_seen) ? new Date(f.repo_created_at || f.first_seen) : null;
         const dateLabel = dt
             ? dt.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
             : 'Unknown Date';
-
         if (dateLabel !== currentDateLabel) {
             currentDateLabel = dateLabel;
             const dateCount = repos.filter(r => {
                 const rd = (r.repo_created_at || r.first_seen) ? new Date(r.repo_created_at || r.first_seen) : null;
-                const rl = rd ? rd.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'Unknown Date';
-                return rl === dateLabel;
+                return (rd ? rd.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'Unknown Date') === dateLabel;
             }).length;
-            // Insert date header row
-            const hdr = document.createElement('tr');
-            const hdrTd = document.createElement('td');
+            const hdr = document.createElement('tr'); const hdrTd = document.createElement('td');
             hdrTd.colSpan = 8;
-            hdrTd.style.cssText = 'padding:10px 14px 6px;border:none;background:var(--surface-1);font-family:var(--font-ui);font-size:12px;font-weight:700;letter-spacing:0.04em;color:var(--text-primary);border-left:3px solid var(--accent);';
+            hdrTd.style.cssText = 'padding:10px 14px 6px;border:none;background:var(--surface-1);font-family:var(--font-display);font-size:11px;font-weight:700;letter-spacing:1.5px;color:var(--text-primary);border-left:3px solid var(--accent);text-transform:uppercase;';
             hdrTd.textContent = dateLabel + '  (' + dateCount + ')';
-            hdr.appendChild(hdrTd);
-            nodes.push(hdr);
+            hdr.appendChild(hdrTd); nodes.push(hdr);
         }
-
         const [m, d] = buildRepoRow(f, i);
         nodes.push(m, d);
     });
     tbody.replaceChildren(...nodes);
-
-    // Apply filters immediately (e.g. hide forks by default)
     window._applyFilters();
 }
 
-// ── Build VT row ──────────────────────────────────────────────────────────────
+// ── Build VT row ─────────────────────────────────────────────────────────────
 function buildVtRow(f, i) {
-    const detailId='v-'+i;
-    const reasons=Array.isArray(f.reasons)?f.reasons:[];
-    const sha256=(Array.isArray(f.suspicious_files)&&f.suspicious_files[0])||'';
+    const detailId = 'v-' + i;
+    const reasons  = Array.isArray(f.reasons) ? f.reasons : [];
+    const sha256   = (Array.isArray(f.suspicious_files) && f.suspicious_files[0]) || '';
 
-    const tr=document.createElement('tr');
-    tr.className='finding-row';
-    tr.dataset.severity=f.severity||''; tr.dataset.platform=f.platform||'';
-    tr.dataset.dismissed=f.dismissed?'true':'false'; tr.dataset.score=String(f.score);
-    tr.onclick=()=>window._toggleDetails(detailId);
+    const tr = document.createElement('tr');
+    tr.className = 'finding-row';
+    tr.dataset.severity = f.severity || ''; tr.dataset.platform = f.platform || '';
+    tr.dataset.dismissed = f.dismissed ? 'true' : 'false'; tr.dataset.score = String(f.score);
+    tr.onclick = () => window._toggleDetails(detailId);
 
-    // Severity col 0 — COVERED badge for known IOCs, severity badge for live findings
-    const tdSev=document.createElement('td');
-    const isKnownIoc = f.platform === 'vt_known_ioc';
-    if (isKnownIoc) {
-        const cb=document.createElement('span'); cb.className='badge-covered'; cb.textContent='COVERED';
+    // Severity / COVERED
+    const tdSev = document.createElement('td');
+    if (f.platform === 'vt_known_ioc') {
+        const cb = document.createElement('span'); cb.className = 'badge-covered'; cb.textContent = 'COVERED';
         tdSev.appendChild(cb);
     } else {
-        const sb=document.createElement('span'); sb.className='badge badge-'+(f.severity||'').toLowerCase(); sb.textContent=f.severity||'';
-        tdSev.appendChild(sb);
+        const sb = document.createElement('span'); sb.className = 'badge badge-' + (f.severity || '').toLowerCase();
+        sb.textContent = f.severity || ''; tdSev.appendChild(sb);
     }
     tr.appendChild(tdSev);
 
     // Filename
-    const tdN=document.createElement('td');
-    const a=document.createElement('a'); a.href=f.repo_url||'#'; a.target='_blank'; a.className='repo-link';
-    a.textContent=f.repo_name||sha256.slice(0,16)+'…'; a.onclick=e=>e.stopPropagation(); tdN.appendChild(a);
-    if(f.description){ tdN.appendChild(document.createElement('br')); const sm=document.createElement('small'); sm.style.color='var(--text-muted)'; sm.textContent=f.description.slice(0,90); tdN.appendChild(sm); }
+    const tdN = document.createElement('td');
+    const a = document.createElement('a'); a.href = f.repo_url || '#'; a.target = '_blank'; a.className = 'repo-link';
+    a.textContent = f.repo_name || sha256.slice(0, 16) + '\u2026'; a.onclick = e => e.stopPropagation();
+    tdN.appendChild(a);
+    if (f.description) { tdN.appendChild(document.createElement('br')); const sm = document.createElement('small'); sm.textContent = f.description.slice(0, 90); tdN.appendChild(sm); }
     tr.appendChild(tdN);
 
-    // TM Detection — extracted from reasons (prefixed "TM Detection:")
-    const tdTm=document.createElement('td');
-    const tmReason=reasons.find(r=>r.startsWith('TM Detection:'));
-    const tmDet=tmReason?tmReason.replace('TM Detection: ',''):'—';
-    const tmSpan=document.createElement('span');
-    tmSpan.style.cssText='font-family:var(--font-data);font-size:11px;color:'+(tmDet==='—'?'var(--text-ghost)':tmDet.startsWith('HEUR')||tmDet.startsWith('Mal_')?'var(--sig-medium)':'var(--sig-high)');
-    tmSpan.textContent=tmDet;
-    tdTm.appendChild(tmSpan); tr.appendChild(tdTm);
+    // TM Detection
+    const tdTm = document.createElement('td');
+    const tmR = reasons.find(r => r.startsWith('TM Detection:'));
+    const tmDet = tmR ? tmR.replace('TM Detection: ', '') : '\u2014';
+    const tmSpan = document.createElement('span'); tmSpan.className = 'mono';
+    tmSpan.style.color = tmDet === '\u2014' ? 'var(--text-ghost)' : (tmDet.startsWith('HEUR') || tmDet.startsWith('Mal_')) ? 'var(--sig-medium)' : 'var(--sig-high)';
+    tmSpan.textContent = tmDet; tdTm.appendChild(tmSpan); tr.appendChild(tdTm);
 
-    const tdS=document.createElement('td'); tdS.className='mono'; tdS.textContent=String(f.score); tr.appendChild(tdS);
-    const tdD=document.createElement('td'); const dm=(f.description||'').match(/(\d+\/\d+ detections)/); tdD.className='mono'; tdD.textContent=dm?dm[1]:'–'; tr.appendChild(tdD);
+    // Score
+    const tdS = document.createElement('td'); tdS.className = 'mono'; tdS.textContent = String(f.score); tr.appendChild(tdS);
 
-    // First Seen (VT first submission date, stored in repo_created_at)
-    const tdFs=document.createElement('td');
-    const fsReason=reasons.find(r=>r.startsWith('First submitted'));
-    if(fsReason){
-        tdFs.className='mono'; tdFs.style.fontSize='11px';
-        tdFs.textContent=fsReason.replace('First submitted to VT: ','');
-    } else if(f.repo_created_at){
-        const dt=new Date(f.repo_created_at);
-        tdFs.className='mono'; tdFs.style.fontSize='11px';
-        tdFs.textContent=dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-    } else { tdFs.textContent='—'; }
+    // Detections
+    const tdD = document.createElement('td');
+    const dm = (f.description || '').match(/(\d+\/\d+ detections)/);
+    tdD.className = 'mono'; tdD.textContent = dm ? dm[1] : '\u2013'; tr.appendChild(tdD);
+
+    // First Seen
+    const tdFs = document.createElement('td'); tdFs.className = 'mono';
+    const fsR = reasons.find(r => r.startsWith('First submitted'));
+    if (fsR) { tdFs.textContent = fsR.replace('First submitted to VT: ', ''); }
+    else if (f.repo_created_at) { tdFs.textContent = new Date(f.repo_created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+    else { tdFs.textContent = '\u2014'; }
     tr.appendChild(tdFs);
 
-    const tdR=document.createElement('td'); const rb=document.createElement('span'); rb.className='badge-rule'; rb.textContent=f.owner_login||'–'; tdR.appendChild(rb); tr.appendChild(tdR);
-    const tdH=document.createElement('td');
-    if(sha256){ const wrap=document.createElement('div'); wrap.className='hash-cell'; const hs=document.createElement('span'); hs.textContent=sha256.slice(0,12)+'…'+sha256.slice(-4); hs.title=sha256; const cpBtn=document.createElement('button'); cpBtn.className='copy-btn'; cpBtn.textContent='copy'; cpBtn.onclick=e=>{ e.stopPropagation(); window._copyHash(sha256,cpBtn); }; wrap.append(hs,cpBtn); tdH.appendChild(wrap); } else { tdH.textContent='–'; }
-    tr.appendChild(tdH);
-    const tdAct=document.createElement('td'); tdAct.style.whiteSpace='nowrap';
-    const vtLink=document.createElement('a'); vtLink.href=f.repo_url||'#'; vtLink.target='_blank'; vtLink.className='btn-vt'; vtLink.textContent='↗ VT'; vtLink.onclick=e=>e.stopPropagation();
-    const dimBtn=document.createElement('button'); dimBtn.className='btn-dismiss'; dimBtn.textContent='✕'; dimBtn.style.cssText='padding:3px 8px;font-size:11px;'; dimBtn.title='Dismiss'; dimBtn.onclick=e=>{ e.stopPropagation(); window._dismiss(f.id,dimBtn); };
-    tdAct.append(vtLink,document.createTextNode(' '),dimBtn); tr.appendChild(tdAct);
+    // Hunt rule
+    const tdR = document.createElement('td');
+    const rb = document.createElement('span'); rb.className = 'badge-rule'; rb.textContent = f.owner_login || '\u2013';
+    tdR.appendChild(rb); tr.appendChild(tdR);
 
-    const trDet=document.createElement('tr'); const tdDet=document.createElement('td');
-    tdDet.colSpan=9; tdDet.style.cssText='padding:0;border:none;';
-    const div=document.createElement('div'); div.className='row-details'; div.id=detailId;
-    if(sha256){ const sh=document.createElement('h4'); sh.textContent='SHA256 (full)'; div.appendChild(sh); const pre=document.createElement('pre'); pre.style.cssText='font-size:11px;padding:8px;background:var(--surface-2);border-radius:3px;overflow-x:auto;user-select:all;'; pre.textContent=sha256; div.appendChild(pre); }
-    const fh=document.createElement('h4'); fh.textContent='Detection Flags ('+reasons.length+')'; div.appendChild(fh);
-    const ul=document.createElement('ul'); reasons.forEach(r=>{ const li=document.createElement('li'); li.textContent=r; ul.appendChild(li); }); div.appendChild(ul);
+    // SHA256
+    const tdH = document.createElement('td');
+    if (sha256) {
+        const wrap = document.createElement('div'); wrap.className = 'hash-cell';
+        const hs = document.createElement('span'); hs.textContent = sha256.slice(0, 12) + '\u2026' + sha256.slice(-4); hs.title = sha256;
+        const cpBtn = document.createElement('button'); cpBtn.className = 'copy-btn'; cpBtn.textContent = 'copy';
+        cpBtn.onclick = e => { e.stopPropagation(); window._copyHash(sha256, cpBtn); };
+        wrap.append(hs, cpBtn); tdH.appendChild(wrap);
+    } else { tdH.textContent = '\u2013'; }
+    tr.appendChild(tdH);
+
+    // Actions
+    const tdAct = document.createElement('td'); tdAct.style.whiteSpace = 'nowrap';
+    const vtL = document.createElement('a'); vtL.href = f.repo_url || '#'; vtL.target = '_blank';
+    vtL.className = 'btn-vt'; vtL.textContent = '\u2197 VT'; vtL.onclick = e => e.stopPropagation();
+    const dBtn = document.createElement('button'); dBtn.className = 'btn-dismiss';
+    dBtn.textContent = '\u2715'; dBtn.style.cssText = 'padding:3px 8px;font-size:11px;margin-left:4px;';
+    dBtn.title = 'Dismiss'; dBtn.onclick = e => { e.stopPropagation(); window._dismiss(f.id, dBtn); };
+    tdAct.append(vtL, dBtn); tr.appendChild(tdAct);
+
+    // Detail row
+    const trDet = document.createElement('tr'); const tdDet = document.createElement('td');
+    tdDet.colSpan = 9; tdDet.style.cssText = 'padding:0;border:none;';
+    const div = document.createElement('div'); div.className = 'row-details'; div.id = detailId;
+    if (sha256) {
+        const sh = document.createElement('h4'); sh.textContent = 'SHA256 (full)'; div.appendChild(sh);
+        const pre = document.createElement('pre'); pre.textContent = sha256; div.appendChild(pre);
+    }
+    const fh = document.createElement('h4'); fh.textContent = 'Detection Flags (' + reasons.length + ')'; div.appendChild(fh);
+    const ul = document.createElement('ul');
+    reasons.forEach(r => { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); });
+    div.appendChild(ul);
     tdDet.appendChild(div); trDet.appendChild(tdDet);
     return [tr, trDet];
 }
 
-// ── Render VT — splits live findings from covered IOCs ────────────────────────
+// ── Render VT ────────────────────────────────────────────────────────────────
 function renderVt(findings) {
-    const tbody     = document.getElementById('vtBody');
-    const covBody   = document.getElementById('coveredBody_table');
-    const covCount  = document.getElementById('coveredCount');
-    const covSec    = document.getElementById('coveredSection');
+    const tbody    = $('vtBody');
+    const covBody  = $('coveredBody_table');
+    const covCount = $('coveredCount');
+    const covSec   = $('coveredSection');
 
     const coveredHits = findings.filter(f => f.platform === 'vt_known_ioc');
-
-    // Build a set of SHA256s already covered — livehunt hits matching these are excluded
-    const coveredSha256s = new Set(
-        coveredHits.flatMap(f => Array.isArray(f.suspicious_files) ? f.suspicious_files : [])
-    );
+    const coveredSha256s = new Set(coveredHits.flatMap(f => Array.isArray(f.suspicious_files) ? f.suspicious_files : []));
 
     const liveHits = findings.filter(f => {
         if (!VT_PLATFORMS.includes(f.platform) || f.platform === 'vt_known_ioc') return false;
-        const sha256 = Array.isArray(f.suspicious_files) ? f.suspicious_files[0] : '';
-        return !coveredSha256s.has(sha256);   // exclude if already covered
+        const sha = Array.isArray(f.suspicious_files) ? f.suspicious_files[0] : '';
+        return !coveredSha256s.has(sha);
     });
 
-    // ── Live findings (top table) ─────────────────────────────────────────────
     if (!liveHits.length) {
-        const tr=document.createElement('tr'); const td=document.createElement('td');
-        td.colSpan=9; const em=document.createElement('div'); em.className='empty-state';
-        const ic=document.createElement('div'); ic.className='icon'; ic.textContent='\u{1F9EC}';
-        const p=document.createElement('p'); p.textContent='No new VT file findings yet. VT Livehunt runs every 30 minutes.';
-        em.append(ic,p); td.appendChild(em); tr.appendChild(td); tbody.replaceChildren(tr);
+        const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 9;
+        const em = document.createElement('div'); em.className = 'empty-state';
+        const ic = document.createElement('div'); ic.className = 'icon'; ic.textContent = '\u{1F9EC}';
+        const p = document.createElement('p'); p.textContent = 'No new VT file findings yet. VT Livehunt runs every 6 hours.';
+        em.append(ic, p); td.appendChild(em); tr.appendChild(td); tbody.replaceChildren(tr);
     } else {
-        const nodes=[]; liveHits.forEach((f,i)=>{ const[m,d]=buildVtRow(f,i); nodes.push(m,d); });
+        const nodes = []; liveHits.forEach((f, i) => { const [m, d] = buildVtRow(f, i); nodes.push(m, d); });
         tbody.replaceChildren(...nodes);
     }
 
-    // ── Covered IOCs (collapsible bottom section) ─────────────────────────────
     if (covCount) covCount.textContent = coveredHits.length;
-    if (covSec)   covSec.style.display = coveredHits.length ? '' : 'none';
+    if (covSec) covSec.style.display = coveredHits.length ? '' : 'none';
     if (covBody && coveredHits.length) {
-        const nodes=[]; coveredHits.forEach((f,i)=>{ const[m,d]=buildVtRow(f,i+'_cov'); nodes.push(m,d); });
+        const nodes = []; coveredHits.forEach((f, i) => { const [m, d] = buildVtRow(f, i + '_cov'); nodes.push(m, d); });
         covBody.replaceChildren(...nodes);
     }
 }
 
-// ── Toggle covered section ────────────────────────────────────────────────────
+// ── Toggle covered ───────────────────────────────────────────────────────────
 window._toggleCovered = function() {
-    const body    = document.getElementById('coveredBody');
-    const chevron = document.getElementById('coveredChevron');
-    const open    = body.style.display === 'block';
-    body.style.display    = open ? 'none' : 'block';
-    chevron.textContent   = open ? '▶' : '▼';
+    const body = $('coveredBody'); const chevron = $('coveredChevron');
+    const open = body.style.display === 'block';
+    body.style.display = open ? 'none' : 'block';
+    chevron.textContent = open ? '\u25B6' : '\u25BC';
 };
 
-// ── Scan history ──────────────────────────────────────────────────────────────
+// ── Scan history ─────────────────────────────────────────────────────────────
 function renderScans(scans) {
-    const list=document.getElementById('scanList');
-    if(!scans||!scans.length){ const li=document.createElement('li'); li.style.cssText='color:var(--text-muted);font-size:12px;'; li.textContent='No scans yet.'; list.replaceChildren(li); return; }
-    const latest=scans[0];
-    if(latest?.started_at){
-        const ago=timeAgo(latest.started_at);
-        document.getElementById('lastScanLabel').textContent='Last scan '+ago;
-        document.getElementById('sideLastScan').textContent='Last scan '+ago;
+    const list = $('scanList');
+    if (!scans || !scans.length) {
+        const li = document.createElement('li'); li.style.color = 'var(--text-ghost)';
+        li.textContent = 'No scans yet.'; list.replaceChildren(li); return;
     }
-    list.replaceChildren(...scans.map(s=>{
-        const li=document.createElement('li');
-        const dt=s.started_at?new Date(s.started_at):null;
-        const lbl=dt?dt.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}):'Unknown';
-        const isFailed=(s.status||'').includes('failed');
-        const dur=s.duration_seconds!=null?s.duration_seconds.toFixed(1)+'s':'–';
-        if(isFailed) li.className='failed';
-        li.textContent=lbl+' \u2014 ';
-        const plats=Array.isArray(s.platforms)?s.platforms:[];
-        if(plats.some(p=>VT_PLATFORMS.includes(p))){ const vt=document.createElement('span'); vt.className='badge-rule'; vt.style.marginRight='4px'; vt.textContent='VT'; li.appendChild(vt); }
-        li.appendChild(document.createTextNode((s.total_found??0)+' found ('));
-        const ns=document.createElement('span'); ns.className='new-count'; ns.textContent=(s.new_found??0)+' new'; li.appendChild(ns);
+    const latest = scans[0];
+    if (latest?.started_at) {
+        const ago = timeAgo(latest.started_at);
+        const dm = $('dashMeta'); if (dm) dm.textContent = 'Last scan ' + ago;
+        $('lastScanLabel').textContent = 'Last scan ' + ago;
+        $('sideLastScan').textContent = ago;
+    }
+    list.replaceChildren(...scans.map(s => {
+        const li = document.createElement('li');
+        const dt = s.started_at ? new Date(s.started_at) : null;
+        const lbl = dt ? dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' ' + dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}) : 'Unknown';
+        const isFailed = (s.status || '').includes('failed');
+        const dur = s.duration_seconds != null ? s.duration_seconds.toFixed(1) + 's' : '\u2013';
+        if (isFailed) li.className = 'failed';
+        li.textContent = lbl + ' \u2014 ';
+        const plats = Array.isArray(s.platforms) ? s.platforms : [];
+        if (plats.some(p => VT_PLATFORMS.includes(p))) {
+            const vt = document.createElement('span'); vt.className = 'badge-rule'; vt.style.marginRight = '4px'; vt.textContent = 'VT'; li.appendChild(vt);
+        }
+        li.appendChild(document.createTextNode((s.total_found ?? 0) + ' found ('));
+        const ns = document.createElement('span'); ns.className = 'new-count'; ns.textContent = (s.new_found ?? 0) + ' new'; li.appendChild(ns);
         li.appendChild(document.createTextNode(') \u2014 '));
-        const ds=document.createElement('span'); ds.className='duration'; ds.textContent=dur; li.appendChild(ds);
-        if(isFailed){ const fs=document.createElement('span'); fs.style.color='var(--sig-critical)'; fs.textContent=' FAILED'; li.appendChild(fs); }
+        const ds = document.createElement('span'); ds.className = 'duration'; ds.textContent = dur; li.appendChild(ds);
+        if (isFailed) { const fs = document.createElement('span'); fs.style.color = 'var(--sig-critical)'; fs.textContent = ' FAILED'; li.appendChild(fs); }
         return li;
     }));
 }
 
-// ── Main load ─────────────────────────────────────────────────────────────────
+// ── Filters ──────────────────────────────────────────────────────────────────
+window._applyFilters = function() {
+    const plat = $('filterPlatform').value;
+    const sev  = $('filterSeverity').value;
+    const showD = $('filterDismissed').checked;
+    const hideForks = $('filterHideForks')?.checked ?? false;
+    const search = ($('repoSearch')?.value || '').toLowerCase();
+
+    document.querySelectorAll('#reposBody .finding-row').forEach(row => {
+        let show = true;
+        if (plat && row.dataset.platform !== plat) show = false;
+        if (sev && row.dataset.severity !== sev) show = false;
+        if (!showD && row.dataset.dismissed === 'true') show = false;
+        if (hideForks && row.dataset.fork === 'true') show = false;
+        if (search) { const text = (row.querySelector('.repo-link')?.textContent || '').toLowerCase(); if (!text.includes(search)) show = false; }
+        row.style.display = show ? '' : 'none';
+        const next = row.nextElementSibling;
+        if (next && !next.classList.contains('finding-row')) next.style.display = show ? '' : 'none';
+    });
+};
+
+window._applyVtFilters = function() {
+    const sev = $('vtFilterSeverity').value;
+    const showD = $('vtFilterDismissed').checked;
+    document.querySelectorAll('#vtBody .finding-row').forEach(row => {
+        let show = true;
+        if (sev && row.dataset.severity !== sev) show = false;
+        if (!showD && row.dataset.dismissed === 'true') show = false;
+        row.style.display = show ? '' : 'none';
+        const next = row.nextElementSibling;
+        if (next && !next.classList.contains('finding-row')) next.style.display = show ? '' : 'none';
+    });
+};
+
+// ── Sort ─────────────────────────────────────────────────────────────────────
+window._sortTable = function(key, col) {
+    const tbody = $(key === 'repos' ? 'reposBody' : 'vtBody');
+    if (!tbody) return;
+    const pairs = [], rows = Array.from(tbody.children);
+    for (let i = 0; i < rows.length - 1; i += 2) if (rows[i] && rows[i+1]) pairs.push([rows[i], rows[i+1]]);
+    const dir = sortDirMap[key];
+    pairs.sort((a, b) => {
+        const cA = a[0].children[col]?.textContent?.trim() || '';
+        const cB = b[0].children[col]?.textContent?.trim() || '';
+        const nA = parseFloat(cA), nB = parseFloat(cB);
+        if (!isNaN(nA) && !isNaN(nB)) return (nA - nB) * dir;
+        return cA.localeCompare(cB) * dir;
+    });
+    sortDirMap[key] *= -1;
+    pairs.forEach(([d, dt]) => { tbody.appendChild(d); tbody.appendChild(dt); });
+};
+
+// ── Copy lists ───────────────────────────────────────────────────────────────
+window._copyRepoList = function() {
+    const names = Array.from(document.querySelectorAll('#reposBody .finding-row'))
+        .filter(r => r.style.display !== 'none')
+        .map(r => r.querySelector('.repo-link')?.textContent || '').filter(Boolean);
+    navigator.clipboard.writeText(names.join('\n')).then(() => showToast('Copied ' + names.length + ' repos', 'success'));
+};
+
+window._copyVtHashes = function() {
+    const hashes = Array.from(document.querySelectorAll('#vtBody .finding-row'))
+        .filter(r => r.style.display !== 'none')
+        .map(r => { const s = r.querySelector('.hash-cell span'); return s?.title || ''; }).filter(Boolean);
+    navigator.clipboard.writeText(hashes.join('\n')).then(() => showToast('Copied ' + hashes.length + ' SHA256 hashes', 'success'));
+};
+
+// ── Export CSV ────────────────────────────────────────────────────────────────
+window._exportCSV = function() {
+    const lines = ['Platform,Repository,Score,Severity,Stars,Listed,Created,URL'];
+    document.querySelectorAll('#reposBody .finding-row').forEach(row => {
+        if (row.style.display === 'none') return;
+        const c = row.querySelectorAll('td');
+        lines.push([c[0],row.querySelector('.repo-link')?.textContent||'',c[2],c[3],c[4],c[5],c[6],row.querySelector('.repo-link')?.href||'']
+            .map((v,i) => '"' + (i===0||i>=2 ? (v?.textContent?.trim()||'') : v) + '"').join(','));
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'lure-monitor-repos-' + new Date().toISOString().slice(0, 10) + '.csv';
+    a.click();
+    showToast('Exported ' + (lines.length - 1) + ' repos to CSV', 'success');
+};
+
+// ── Keyboard shortcuts ───────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (e.key === '1') window._switchSection('dashboard');
+    if (e.key === '2') window._switchSection('repos');
+    if (e.key === '3') window._switchSection('vt');
+});
+
+// ── Retry ────────────────────────────────────────────────────────────────────
+window._retry = () => loadDashboard();
+
+// ── Main load ────────────────────────────────────────────────────────────────
 async function loadDashboard() {
     hideError();
     const [fr, sr] = await Promise.allSettled([fetchFindings(), fetchScans()]);
-    if (fr.status==='fulfilled') {
+    if (fr.status === 'fulfilled') {
         const f = fr.value;
         renderStats(computeStats(f));
         renderPlatformBar(f);
@@ -1435,149 +1585,24 @@ async function loadDashboard() {
         renderTimeline(f);
         renderRepos(f);
         renderVt(f);
-    } else {
-        showError('Failed to load: '+fr.reason?.message);
-    }
-    if (sr.status==='fulfilled') renderScans(sr.value);
+    } else { showError('Failed to load: ' + fr.reason?.message); }
+    if (sr.status === 'fulfilled') renderScans(sr.value);
 }
 
-// ── Filters ───────────────────────────────────────────────────────────────────
-window._applyFilters = function() {
-    const plat=document.getElementById('filterPlatform').value;
-    const sev=document.getElementById('filterSeverity').value;
-    const showD=document.getElementById('filterDismissed').checked;
-    const hideForks=document.getElementById('filterHideForks')?.checked ?? false;
-    const search=(document.getElementById('repoSearch')?.value||'').toLowerCase();
-    document.querySelectorAll('#reposBody .finding-row').forEach(row=>{
-        let show=true;
-        if(plat&&row.dataset.platform!==plat) show=false;
-        if(sev&&row.dataset.severity!==sev)   show=false;
-        if(!showD&&row.dataset.dismissed==='true') show=false;
-        if(hideForks&&row.dataset.fork==='true') show=false;
-        if(search) {
-            const text=(row.querySelector('.repo-link')?.textContent||'').toLowerCase();
-            if(!text.includes(search)) show=false;
-        }
-        row.style.display=show?'':'none';
-        const next=row.nextElementSibling;
-        if(next&&!next.classList.contains('finding-row')) next.style.display=show?'':'none';
-    });
-};
-
-window._applyVtFilters = function() {
-    const sev   = document.getElementById('vtFilterSeverity').value;
-    const showD = document.getElementById('vtFilterDismissed').checked;
-    // Only filter the live findings table — covered section is always visible when expanded
-    document.querySelectorAll('#vtBody .finding-row').forEach(row=>{
-        let show = true;
-        if (sev   && row.dataset.severity  !== sev)        show = false;
-        if (!showD && row.dataset.dismissed === 'true')    show = false;
-        row.style.display = show ? '' : 'none';
-        const next = row.nextElementSibling;
-        if (next && !next.classList.contains('finding-row')) next.style.display = show ? '' : 'none';
-    });
-};
-
-// ── Sort ──────────────────────────────────────────────────────────────────────
-window._sortTable = function(key, col) {
-    const tbody=document.getElementById(key==='repos'?'reposBody':'vtBody');
-    if(!tbody) return;
-    const pairs=[],rows=Array.from(tbody.children);
-    for(let i=0;i<rows.length-1;i+=2) if(rows[i]&&rows[i+1]) pairs.push([rows[i],rows[i+1]]);
-    const dir=sortDirMap[key];
-    pairs.sort((a,b)=>{ const cA=a[0].children[col]?.textContent?.trim()||'',cB=b[0].children[col]?.textContent?.trim()||''; const nA=parseFloat(cA),nB=parseFloat(cB); if(!isNaN(nA)&&!isNaN(nB)) return (nA-nB)*dir; return cA.localeCompare(cB)*dir; });
-    sortDirMap[key]*=-1;
-    pairs.forEach(([d,dt])=>{ tbody.appendChild(d); tbody.appendChild(dt); });
-};
-
-// ── Copy lists ────────────────────────────────────────────────────────────────
-window._copyRepoList = function(btn) {
-    const rows = document.querySelectorAll('#reposBody .finding-row');
-    const names = Array.from(rows)
-        .filter(r => r.style.display !== 'none')
-        .map(r => r.querySelector('.repo-link')?.textContent || '')
-        .filter(Boolean);
-    navigator.clipboard.writeText(names.join('\n')).then(() => {
-        showToast('Copied ' + names.length + ' repos to clipboard', 'success');
-    });
-};
-
-window._copyVtHashes = function(btn) {
-    const rows = document.querySelectorAll('#vtBody .finding-row');
-    const hashes = Array.from(rows)
-        .filter(r => r.style.display !== 'none')
-        .map(r => {
-            const hashSpan = r.querySelector('.hash-cell span');
-            return hashSpan?.title || '';
-        })
-        .filter(Boolean);
-    navigator.clipboard.writeText(hashes.join('\n')).then(() => {
-        showToast('Copied ' + hashes.length + ' SHA256 hashes to clipboard', 'success');
-    });
-};
-
-// ── Toast notifications ────────────────────────────────────────────────────────
-function showToast(message, type='info') {
-    const container = document.getElementById('toast-container');
-    const toast = document.createElement('div');
-    toast.className = 'toast ' + type;
-    toast.textContent = message;
-    container.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
-}
-
-// ── Export CSV ─────────────────────────────────────────────────────────────────
-window._exportCSV = function() {
-    const rows = document.querySelectorAll('#reposBody .finding-row');
-    const lines = ['Platform,Repository,Score,Severity,Stars,Listed,Created,URL'];
-    rows.forEach(row => {
-        if (row.style.display === 'none') return;
-        const cells = row.querySelectorAll('td');
-        const platform = cells[0]?.textContent?.trim() || '';
-        const repo     = row.querySelector('.repo-link')?.textContent || '';
-        const score    = cells[2]?.textContent?.trim() || '';
-        const stars    = cells[3]?.textContent?.trim() || '';
-        const releases = cells[4]?.textContent?.trim() || '';
-        const listed   = cells[5]?.textContent?.trim() || '';
-        const created  = cells[6]?.textContent?.trim() || '';
-        const url      = row.querySelector('.repo-link')?.href || '';
-        lines.push(`"${platform}","${repo}","${score}","${stars}","${releases}","${listed}","${created}","${url}"`);
-    });
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'lure-monitor-repos-' + new Date().toISOString().slice(0,10) + '.csv';
-    a.click();
-    showToast('Exported ' + (lines.length - 1) + ' repos to CSV', 'success');
-};
-
-// ── Keyboard shortcuts ────────────────────────────────────────────────────────
-document.addEventListener('keydown', e => {
-    // Don't trigger if typing in search bar
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-    if (e.key === '1') window._switchSection('dashboard');
-    if (e.key === '2') window._switchSection('repos');
-    if (e.key === '3') window._switchSection('vt');
-});
-
-// ── Retry ─────────────────────────────────────────────────────────────────────
-window._retry = () => loadDashboard();
-
-// ── Realtime ──────────────────────────────────────────────────────────────────
+// ── Realtime ─────────────────────────────────────────────────────────────────
 db.channel('scan-status')
-    .on('postgres_changes',{event:'INSERT',schema:'public',table:'scans'},()=>{
-        document.getElementById('scanRunning').style.display='inline-flex';
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'scans' }, () => {
+        $('scanRunning').style.display = 'inline-flex';
     })
-    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'scans'},payload=>{
-        const status=payload.new?.status||'';
-        if(status==='running'){ document.getElementById('scanRunning').style.display='inline-flex'; }
-        else { document.getElementById('scanRunning').style.display='none'; if(status==='completed'||status.startsWith('failed')) loadDashboard(); }
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'scans' }, payload => {
+        const status = payload.new?.status || '';
+        if (status === 'running') { $('scanRunning').style.display = 'inline-flex'; }
+        else { $('scanRunning').style.display = 'none'; if (status === 'completed' || status.startsWith('failed')) loadDashboard(); }
     })
     .subscribe();
 
-// ── Boot ──────────────────────────────────────────────────────────────────────
+// ── Boot ─────────────────────────────────────────────────────────────────────
 loadDashboard();
 </script>
-<div id="toast-container"></div>
 </body>
 </html>
