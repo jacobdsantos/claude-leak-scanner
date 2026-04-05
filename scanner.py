@@ -120,6 +120,23 @@ def score_repo(
         score += 20
         reasons.append("Steam profile link (known DDR pattern)")
 
+    # ── README download lure — specific malware binary references ──
+    # Catches repos that direct users to download malicious archives via README
+    # even when there are no GitHub Releases (download link is in the text itself)
+    if re.search(r"ClaudeCode_x64\.(7z|exe|zip|rar)", readme, re.IGNORECASE):
+        score += 30
+        reasons.append("README references ClaudeCode_x64 download archive")
+    if re.search(r"TradeAI\.(exe|7z)", readme, re.IGNORECASE):
+        score += 35
+        reasons.append("README references TradeAI executable")
+    if re.search(r"pre-compiled\s+binar", readme, re.IGNORECASE) and \
+            re.search(r"claude|anthropic|claw", readme_lower):
+        score += 20
+        reasons.append("README claims pre-compiled binaries (lure pattern)")
+    if re.search(r"(step\s*1|download).*releases.*page", readme, re.IGNORECASE):
+        score += 10
+        reasons.append("README directs to Releases page for download")
+
     for domain in config.KNOWN_C2_DOMAINS:
         if domain in readme_lower:
             score += 40

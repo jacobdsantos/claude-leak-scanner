@@ -86,6 +86,10 @@ SEARCH_QUERIES = [
 
     # Research / RE repos
     "claude code reverse engineer",
+
+    # README content search — catches repos directing users to malicious downloads
+    # even when they have no releases (download link is in the README itself)
+    "ClaudeCode_x64 in:readme",
 ]
 
 # ── Known IOCs (Zscaler ThreatLabz) ─────────────────────────────────────────
@@ -93,8 +97,41 @@ SEARCH_QUERIES = [
 KNOWN_MALICIOUS_ACCOUNTS = {"idbzoomh", "idbzoomh1", "my3jie"}
 
 KNOWN_MALICIOUS_REPOS = {
+    # Original malicious repos (Zscaler IOC)
     "leaked-claude-code/leaked-claude-code",
     "my3jie/leaked-claude-code",
+
+    # ── Known forks of leaked-claude-code (all carry same malicious README + downloads)
+    "ikandali/leaked-claude-code",
+    "not-agent/leaked-claude-code",
+    "KhaosLee/leaked-claude-code",
+    "thivankasarathchandra/leaked-claude-code",
+    "bcefghj/Claude-Code-Source",
+    "aweyonhub/leaked-claude-code",
+    "RicardoPoleo/supposed-cc",
+    "Moskimla/leaked-claude-code",
+    "makeouthillx32/leaked-claude-code",
+    "shun-fukuchi-homula/leaked-claude-code",
+    "MikeDevBeddo/leaked-claude-code-vv",
+    "princearoraaws/leaked-claude-code",
+    "VoicuTomut/leaked-claude-code",
+    "GNSubrahmanyam/leaked-claude-code",
+    "chinna-naidu/leaked-claude-code",
+    "yasinldev/leaked-claude-code",
+    "lalitaditya04/leaked-claude-code",
+    "dazong9275-prog/leaked-claude-code",
+    "paulmarinos/leaked-claude-code",
+    "brokerdelhan-beep/leaked-claude-code",
+    "Mazen-wedaa/leaked-claude-code",
+    "xianzong1981/leaked-claude-code",
+    "fabioeducacross/leaked-claude-code",
+    "ShoupingShan/leaked-claude-code",
+    "CHRITH3/leaked-claude-code",
+
+    # ── Non-fork clones with same malicious content (README download lure)
+    "5tarlight/lcc",
+    "NguyenThucTrongNhan/clone-claudlev2",
+    "nvd11/xinmi-ide-code",
 }
 
 KNOWN_MD5S = {
