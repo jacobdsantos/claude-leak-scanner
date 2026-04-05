@@ -136,11 +136,8 @@ def score_repo(
         # HIGH confidence: archive name + specific Releases page download instruction
         score += 35
         reasons.append("README matches malicious lure pattern: ClaudeCode_x64 archive + Releases page download")
-    elif has_claudecode_archive:
-        # LOW confidence: archive name alone — could be news, analysis, or star tracker.
-        # Only +10 so it needs other signals (zero stars, new account, etc.) to surface.
-        score += 10
-        reasons.append("README references ClaudeCode_x64 archive (no lure combo — may be analysis)")
+    # No score for ClaudeCode_x64 alone without the lure combo —
+    # star trackers, news articles, and analysis repos mention it in context.
     if has_extract_archive and has_claudecode_archive:
         score += 10
         reasons.append("README has 'extract archive to permanent location' instruction")
