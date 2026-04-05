@@ -120,22 +120,29 @@ def score_repo(
         score += 20
         reasons.append("Steam profile link (known DDR pattern)")
 
-    # ── README download lure — specific malware binary references ──
-    # Catches repos that direct users to download malicious archives via README
-    # even when there are no GitHub Releases (download link is in the text itself)
-    if re.search(r"ClaudeCode_x64\.(7z|exe|zip|rar)", readme, re.IGNORECASE):
-        score += 30
-        reasons.append("README references ClaudeCode_x64 download archive")
-    if re.search(r"TradeAI\.(exe|7z)", readme, re.IGNORECASE):
+    # ── README download lure — exact phrases from known malicious README ──
+    # These patterns are derived from the leaked-claude-code/leaked-claude-code
+    # original README. They require specific combination of phrases to avoid FPs.
+    has_claudecode_archive = bool(re.search(r"ClaudeCode_x64\.(7z|exe|zip|rar)", readme, re.IGNORECASE))
+    has_precompiled = bool(re.search(r"pre-compiled\s+binar", readme, re.IGNORECASE))
+    has_releases_download = bool(re.search(r"navigate\s+to\s+(the\s+)?releases.*page.*download", readme, re.IGNORECASE))
+    has_extract_archive = bool(re.search(r"extract\s+(the\s+)?archive\s+to\s+a\s+permanent", readme, re.IGNORECASE))
+
+    if has_claudecode_archive and has_precompiled:
+        # HIGH confidence: exact lure combo from the original malicious README
+        score += 40
+        reasons.append("README matches malicious lure pattern: ClaudeCode_x64 archive + 'pre-compiled binaries'")
+    elif has_claudecode_archive and has_releases_download:
+        # HIGH confidence: archive name + specific Releases page download instruction
         score += 35
-        reasons.append("README references TradeAI executable")
-    if re.search(r"pre-compiled\s+binar", readme, re.IGNORECASE) and \
-            re.search(r"claude|anthropic|claw", readme_lower):
+        reasons.append("README matches malicious lure pattern: ClaudeCode_x64 archive + Releases page download")
+    elif has_claudecode_archive:
+        # MEDIUM confidence: just the archive name, may be a news/analysis article
         score += 20
-        reasons.append("README claims pre-compiled binaries (lure pattern)")
-    if re.search(r"(step\s*1|download).*releases.*page", readme, re.IGNORECASE):
+        reasons.append("README references ClaudeCode_x64 archive")
+    if has_extract_archive and has_claudecode_archive:
         score += 10
-        reasons.append("README directs to Releases page for download")
+        reasons.append("README has 'extract archive to permanent location' instruction")
 
     for domain in config.KNOWN_C2_DOMAINS:
         if domain in readme_lower:

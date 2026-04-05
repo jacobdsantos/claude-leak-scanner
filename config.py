@@ -80,16 +80,13 @@ SEARCH_QUERIES = [
     "claude code setup",
     "claude code installer",
 
-    # Known campaign identifiers
-    "TradeAI nofilabs",         # dropper label across all 25+ brand variants
-    "openclaw",                 # Feb 2026 precursor campaign, same TA + payload
-
     # Research / RE repos
     "claude code reverse engineer",
 
     # README content search — catches repos directing users to malicious downloads
-    # even when they have no releases (download link is in the README itself)
-    "ClaudeCode_x64 in:readme",
+    # even when they have no releases (download link is in the README itself).
+    # The .7z extension + x64 architecture is specific enough to avoid FPs.
+    "ClaudeCode_x64.7z in:readme",
 ]
 
 # ── Known IOCs (Zscaler ThreatLabz) ─────────────────────────────────────────
