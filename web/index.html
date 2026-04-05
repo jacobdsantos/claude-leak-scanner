@@ -16,7 +16,7 @@
 
         /* ── Sidebar ───────────────────────────────────────────────────── */
         .sidebar {
-            width: 196px;
+            width: 172px;
             flex-shrink: 0;
             background: var(--surface-1);
             border-right: 1px solid var(--edge);
@@ -69,7 +69,7 @@
         }
 
         .nav-item.active .nav-count {
-            background: rgba(240, 180, 41, 0.18);
+            background: var(--accent-dim);
             color: var(--accent);
         }
 
@@ -208,6 +208,7 @@
             border: 1px solid var(--edge);
             border-radius: 2px;
             border-left: 3px solid var(--sig-critical);
+            flex-wrap: wrap;
         }
 
         .campaign-card-body { flex: 1; }
@@ -731,13 +732,10 @@
                 <table class="findings-table" id="reposTable">
                     <thead>
                         <tr>
-                            <th onclick="window._sortTable('repos',0)">Platform</th>
-                            <th onclick="window._sortTable('repos',1)">Repository</th>
-                            <th onclick="window._sortTable('repos',2)">Score <span class="sort-arrow">&#9660;</span></th>
-                            <th onclick="window._sortTable('repos',3)">Stars</th>
-                            <th onclick="window._sortTable('repos',4)">Releases</th>
+                            <th onclick="window._sortTable('repos',0)">Repository</th>
+                            <th onclick="window._sortTable('repos',1)">Score <span class="sort-arrow">&#9660;</span></th>
                             <th>Listed</th>
-                            <th onclick="window._sortTable('repos',6)">Created</th>
+                            <th onclick="window._sortTable('repos',3)">Created</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -772,10 +770,7 @@
                             <th onclick="window._sortTable('vt',0)">Severity</th>
                             <th onclick="window._sortTable('vt',1)">Filename</th>
                             <th>TM Detection</th>
-                            <th onclick="window._sortTable('vt',3)">Score <span class="sort-arrow">&#9660;</span></th>
-                            <th onclick="window._sortTable('vt',4)">Detections</th>
                             <th>First Seen</th>
-                            <th>Hunt Rule</th>
                             <th>SHA256</th>
                             <th>Actions</th>
                         </tr>
@@ -799,10 +794,7 @@
                                 <th>Status</th>
                                 <th>Filename</th>
                                 <th>TM Detection</th>
-                                <th>Score</th>
-                                <th>Detections</th>
                                 <th>First Seen</th>
-                                <th>Category</th>
                                 <th>SHA256</th>
                                 <th>Actions</th>
                             </tr>
@@ -1152,44 +1144,31 @@ function buildRepoRow(f, i) {
         || (f.repo_name && f.repo_name.endsWith('/leaked-claude-code'))) ? 'true' : 'false';
     tr.onclick = () => window._toggleDetails(detailId);
 
-    // Platform
-    const tdP = document.createElement('td');
-    const pb  = document.createElement('span');
-    pb.className = 'badge-platform ' + (f.platform || ''); pb.textContent = f.platform || '';
-    tdP.appendChild(pb); tr.appendChild(tdP);
-
-    // Repo + desc
+    // Col 0: Repository (platform badge + name + desc)
     const tdR = document.createElement('td');
-    const a   = document.createElement('a');
+    const pb = document.createElement('span');
+    pb.className = 'badge-platform ' + (f.platform || ''); pb.textContent = f.platform || '';
+    tdR.appendChild(pb); tdR.appendChild(document.createTextNode(' '));
+    const a = document.createElement('a');
     a.href = f.repo_url || '#'; a.target = '_blank'; a.className = 'repo-link';
     a.textContent = f.repo_name || ''; a.onclick = e => e.stopPropagation();
     tdR.appendChild(a);
     if (f.description) {
         tdR.appendChild(document.createElement('br'));
         const sm = document.createElement('small');
-        sm.textContent = f.description.slice(0, 80) + (f.description.length > 80 ? '\u2026' : '');
+        sm.textContent = f.description.slice(0, 100) + (f.description.length > 100 ? '\u2026' : '');
         tdR.appendChild(sm);
     }
     tr.appendChild(tdR);
 
-    // Score + Severity
+    // Col 1: Score + Severity
     const tdS = document.createElement('td');
-    const sb  = document.createElement('span');
+    const sb = document.createElement('span');
     sb.className = 'badge badge-' + (f.severity || '').toLowerCase();
     sb.textContent = f.score + ' ' + (f.severity || '');
     tdS.appendChild(sb); tr.appendChild(tdS);
 
-    // Stars
-    const tdSt = document.createElement('td');
-    tdSt.className = 'mono'; tdSt.textContent = String(f.stars ?? 0); tr.appendChild(tdSt);
-
-    // Releases
-    const tdRel = document.createElement('td');
-    tdRel.className = 'mono';
-    tdRel.textContent = assets.length ? assets.length + ' asset' + (assets.length !== 1 ? 's' : '') : '\u2013';
-    tr.appendChild(tdRel);
-
-    // Listed
+    // Col 2: Listed
     const tdListed = document.createElement('td');
     if (ALREADY_LISTED.has(f.repo_name)) {
         const lb = document.createElement('span'); lb.className = 'badge-listed'; lb.textContent = 'LISTED';
@@ -1197,7 +1176,7 @@ function buildRepoRow(f, i) {
     }
     tr.appendChild(tdListed);
 
-    // Created
+    // Col 3: Created
     const tdDate = document.createElement('td'); tdDate.className = 'mono';
     const _dv = f.repo_created_at || f.first_seen;
     if (_dv) {
@@ -1207,10 +1186,10 @@ function buildRepoRow(f, i) {
     } else { tdDate.textContent = '\u2013'; }
     tr.appendChild(tdDate);
 
-    // Actions
+    // Col 4: Actions
     const tdAct = document.createElement('td');
-    const bg    = document.createElement('div'); bg.className = 'btn-group';
-    const ob    = document.createElement('a');
+    const bg = document.createElement('div'); bg.className = 'btn-group';
+    const ob = document.createElement('a');
     ob.className = 'action-btn'; ob.href = f.repo_url || '#'; ob.target = '_blank';
     ob.textContent = 'Open'; ob.onclick = e => e.stopPropagation();
     const db2 = document.createElement('button');
@@ -1218,12 +1197,23 @@ function buildRepoRow(f, i) {
     db2.onclick = e => { e.stopPropagation(); window._dismiss(f.id, db2); };
     bg.append(ob, db2); tdAct.appendChild(bg); tr.appendChild(tdAct);
 
-    // Detail row
+    // Detail row (5 cols)
     const trDet = document.createElement('tr');
     const tdDet = document.createElement('td');
-    tdDet.colSpan = 8; tdDet.style.cssText = 'padding:0;border:none;';
+    tdDet.colSpan = 5; tdDet.style.cssText = 'padding:0;border:none;';
     const div = document.createElement('div'); div.className = 'row-details'; div.id = detailId;
 
+    // Quick stats line
+    const qh = document.createElement('h4'); qh.textContent = 'Details'; div.appendChild(qh);
+    const qul = document.createElement('ul');
+    const qStars = document.createElement('li'); qStars.textContent = 'Stars: ' + (f.stars ?? 0); qul.appendChild(qStars);
+    if (assets.length) { const qRel = document.createElement('li'); qRel.textContent = 'Release assets: ' + assets.length; qul.appendChild(qRel); }
+    if (f.owner_login) { const qOwn = document.createElement('li'); qOwn.textContent = 'Owner: ' + f.owner_login; qul.appendChild(qOwn); }
+    if (f.owner_age_days != null) { const qAge = document.createElement('li'); qAge.textContent = 'Account age: ' + f.owner_age_days + ' days'; qul.appendChild(qAge); }
+    if (f.owner_pub_repos != null) { const qPub = document.createElement('li'); qPub.textContent = 'Public repos: ' + f.owner_pub_repos; qul.appendChild(qPub); }
+    div.appendChild(qul);
+
+    // Flags
     const fh = document.createElement('h4'); fh.textContent = 'Flags (' + reasons.length + ')'; div.appendChild(fh);
     const ul = document.createElement('ul');
     if (reasons.length) reasons.forEach(r => { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); });
@@ -1246,14 +1236,6 @@ function buildRepoRow(f, i) {
         suspFiles.forEach(sf => { const li = document.createElement('li'); li.className = 'mono'; li.textContent = sf; sul.appendChild(li); });
         div.appendChild(sul);
     }
-    const oh = document.createElement('h4'); oh.textContent = 'Owner Info'; div.appendChild(oh);
-    const oul = document.createElement('ul');
-    const oli = document.createElement('li'); oli.textContent = 'Login: ';
-    const oc = document.createElement('code'); oc.className = 'mono'; oc.textContent = f.owner_login || 'unknown';
-    oli.appendChild(oc); oul.appendChild(oli);
-    if (f.owner_age_days != null) { const li = document.createElement('li'); li.textContent = 'Account age: ' + f.owner_age_days + ' days'; oul.appendChild(li); }
-    if (f.owner_pub_repos != null) { const li = document.createElement('li'); li.textContent = 'Public repos: ' + f.owner_pub_repos; oul.appendChild(li); }
-    div.appendChild(oul);
     tdDet.appendChild(div); trDet.appendChild(tdDet);
     return [tr, trDet];
 }
@@ -1264,7 +1246,7 @@ function renderRepos(findings) {
     const repos = findings.filter(f => REPO_PLATFORMS.includes(f.platform));
 
     if (!repos.length) {
-        const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 8;
+        const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 5;
         const em = document.createElement('div'); em.className = 'empty-state';
         const ic = document.createElement('div'); ic.className = 'icon'; ic.textContent = '\u{1F50D}';
         const p = document.createElement('p'); p.textContent = 'No repository findings yet. Scans run hourly via GitHub Actions.';
@@ -1291,7 +1273,7 @@ function renderRepos(findings) {
                 return (rd ? rd.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'Unknown Date') === dateLabel;
             }).length;
             const hdr = document.createElement('tr'); const hdrTd = document.createElement('td');
-            hdrTd.colSpan = 8;
+            hdrTd.colSpan = 5;
             hdrTd.style.cssText = 'padding:10px 14px 6px;border:none;background:var(--surface-1);font-family:var(--font-display);font-size:11px;font-weight:700;letter-spacing:1.5px;color:var(--text-primary);border-left:3px solid var(--accent);text-transform:uppercase;';
             hdrTd.textContent = dateLabel + '  (' + dateCount + ')';
             hdr.appendChild(hdrTd); nodes.push(hdr);
@@ -1334,7 +1316,7 @@ function buildVtRow(f, i) {
     if (f.description) { tdN.appendChild(document.createElement('br')); const sm = document.createElement('small'); sm.textContent = f.description.slice(0, 90); tdN.appendChild(sm); }
     tr.appendChild(tdN);
 
-    // TM Detection
+    // Col 2: TM Detection
     const tdTm = document.createElement('td');
     const tmR = reasons.find(r => r.startsWith('TM Detection:'));
     const tmDet = tmR ? tmR.replace('TM Detection: ', '') : '\u2014';
@@ -1342,15 +1324,7 @@ function buildVtRow(f, i) {
     tmSpan.style.color = tmDet === '\u2014' ? 'var(--text-ghost)' : (tmDet.startsWith('HEUR') || tmDet.startsWith('Mal_')) ? 'var(--sig-medium)' : 'var(--sig-high)';
     tmSpan.textContent = tmDet; tdTm.appendChild(tmSpan); tr.appendChild(tdTm);
 
-    // Score
-    const tdS = document.createElement('td'); tdS.className = 'mono'; tdS.textContent = String(f.score); tr.appendChild(tdS);
-
-    // Detections
-    const tdD = document.createElement('td');
-    const dm = (f.description || '').match(/(\d+\/\d+ detections)/);
-    tdD.className = 'mono'; tdD.textContent = dm ? dm[1] : '\u2013'; tr.appendChild(tdD);
-
-    // First Seen
+    // Col 3: First Seen
     const tdFs = document.createElement('td'); tdFs.className = 'mono';
     const fsR = reasons.find(r => r.startsWith('First submitted'));
     if (fsR) { tdFs.textContent = fsR.replace('First submitted to VT: ', ''); }
@@ -1358,12 +1332,7 @@ function buildVtRow(f, i) {
     else { tdFs.textContent = '\u2014'; }
     tr.appendChild(tdFs);
 
-    // Hunt rule
-    const tdR = document.createElement('td');
-    const rb = document.createElement('span'); rb.className = 'badge-rule'; rb.textContent = f.owner_login || '\u2013';
-    tdR.appendChild(rb); tr.appendChild(tdR);
-
-    // SHA256
+    // Col 4: SHA256
     const tdH = document.createElement('td');
     if (sha256) {
         const wrap = document.createElement('div'); wrap.className = 'hash-cell';
@@ -1374,7 +1343,7 @@ function buildVtRow(f, i) {
     } else { tdH.textContent = '\u2013'; }
     tr.appendChild(tdH);
 
-    // Actions
+    // Col 5: Actions
     const tdAct = document.createElement('td'); tdAct.style.whiteSpace = 'nowrap';
     const vtL = document.createElement('a'); vtL.href = f.repo_url || '#'; vtL.target = '_blank';
     vtL.className = 'btn-vt'; vtL.textContent = '\u2197 VT'; vtL.onclick = e => e.stopPropagation();
@@ -1383,10 +1352,20 @@ function buildVtRow(f, i) {
     dBtn.title = 'Dismiss'; dBtn.onclick = e => { e.stopPropagation(); window._dismiss(f.id, dBtn); };
     tdAct.append(vtL, dBtn); tr.appendChild(tdAct);
 
-    // Detail row
+    // Detail row (6 cols)
     const trDet = document.createElement('tr'); const tdDet = document.createElement('td');
-    tdDet.colSpan = 9; tdDet.style.cssText = 'padding:0;border:none;';
+    tdDet.colSpan = 6; tdDet.style.cssText = 'padding:0;border:none;';
     const div = document.createElement('div'); div.className = 'row-details'; div.id = detailId;
+
+    // Quick stats
+    const qh = document.createElement('h4'); qh.textContent = 'Details'; div.appendChild(qh);
+    const qul = document.createElement('ul');
+    const qScore = document.createElement('li'); qScore.textContent = 'Score: ' + f.score; qul.appendChild(qScore);
+    const dm = (f.description || '').match(/(\d+\/\d+ detections)/);
+    if (dm) { const qDet = document.createElement('li'); qDet.textContent = 'Detections: ' + dm[1]; qul.appendChild(qDet); }
+    if (f.owner_login) { const qRule = document.createElement('li'); qRule.textContent = 'Hunt rule: ' + f.owner_login; qul.appendChild(qRule); }
+    div.appendChild(qul);
+
     if (sha256) {
         const sh = document.createElement('h4'); sh.textContent = 'SHA256 (full)'; div.appendChild(sh);
         const pre = document.createElement('pre'); pre.textContent = sha256; div.appendChild(pre);
@@ -1416,7 +1395,7 @@ function renderVt(findings) {
     });
 
     if (!liveHits.length) {
-        const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 9;
+        const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 6;
         const em = document.createElement('div'); em.className = 'empty-state';
         const ic = document.createElement('div'); ic.className = 'icon'; ic.textContent = '\u{1F9EC}';
         const p = document.createElement('p'); p.textContent = 'No new VT file findings yet. VT Livehunt runs every 6 hours.';
@@ -1546,12 +1525,16 @@ window._copyVtHashes = function() {
 
 // ── Export CSV ────────────────────────────────────────────────────────────────
 window._exportCSV = function() {
-    const lines = ['Platform,Repository,Score,Severity,Stars,Listed,Created,URL'];
+    const lines = ['Platform,Repository,Score,Severity,Listed,Created,URL'];
     document.querySelectorAll('#reposBody .finding-row').forEach(row => {
         if (row.style.display === 'none') return;
-        const c = row.querySelectorAll('td');
-        lines.push([c[0],row.querySelector('.repo-link')?.textContent||'',c[2],c[3],c[4],c[5],c[6],row.querySelector('.repo-link')?.href||'']
-            .map((v,i) => '"' + (i===0||i>=2 ? (v?.textContent?.trim()||'') : v) + '"').join(','));
+        const platform = row.dataset.platform || '';
+        const repo = row.querySelector('.repo-link')?.textContent || '';
+        const scoreCell = row.querySelectorAll('td')[1]?.textContent?.trim() || '';
+        const listed = row.querySelectorAll('td')[2]?.textContent?.trim() || '';
+        const created = row.querySelectorAll('td')[3]?.textContent?.trim() || '';
+        const url = row.querySelector('.repo-link')?.href || '';
+        lines.push([platform, repo, scoreCell, listed, created, url].map(v => '"' + v + '"').join(','));
     });
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
     const a = document.createElement('a');

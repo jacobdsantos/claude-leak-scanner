@@ -627,7 +627,7 @@ body::before {
 
 /* ── Findings Table ────────────────────────────────────────────────────── */
 
-.findings-section { padding: 0; }
+.findings-section { padding: 0; overflow-x: auto; }
 
 .findings-table {
     width: 100%;
@@ -637,7 +637,7 @@ body::before {
 .findings-table th {
     font-family: var(--font-data);
     text-align: left;
-    padding: 9px 14px;
+    padding: 8px 12px;
     border-bottom: 1px solid var(--edge-bright);
     color: var(--text-ghost);
     font-size: 9px;
@@ -662,7 +662,7 @@ body::before {
 }
 
 .findings-table td {
-    padding: 10px 14px;
+    padding: 8px 12px;
     border-bottom: 1px solid var(--edge);
     vertical-align: middle;
     font-size: 12px;
