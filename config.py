@@ -39,54 +39,46 @@ STAR_THRESHOLD  = int(os.environ.get("STAR_THRESHOLD", 100))
 MIN_SCORE       = int(os.environ.get("MIN_SCORE", 5))
 
 # ── Search queries ────────────────────────────────────────────────────────────
-# Expanded from 12 → 22 based on campaign research.
-# Platform search APIs treat spaces as AND, so "claude leaked" covers
-# "claude code leaked", "claude source leaked", etc.
+# Trimmed to 11 high-signal queries (was 23). Noisy queries removed:
+#   claw code (720 FPs), claude code source (1147 FPs), anthropic source code (280 FPs),
+#   claude code free (130 FPs), claude code setup (240 FPs), claude code installer (156 FPs),
+#   claude activator/bypass/unlock/keygen/cracked/pro free (0-19, all FPs or dead)
 #
 # Research sources:
 #   - Trend Micro: TradeAI rotating-lure campaign (25+ brands, same Rust dropper)
-#   - Huntress: OpenClaw precursor campaign (Feb 2026, same threat actor)
 #   - Zscaler: Known IOC repos idbzoomh/my3jie
 
 SEARCH_QUERIES = [
-    # Core leak variants
+    # Core leak name variants (covers "claude code leaked", "claude source leaked", etc.)
     "claude leaked",
-    "claude code source",
     "claude sourcemap",
-    "claude-code-leaked",
+
+    # Forks/clones of the original malicious repo (GitHub treats this as AND search)
+    "leaked-claude-code",
 
     # Anthropic-branded lures
     "anthropic leaked",
-    "anthropic source code",
 
-    # Obfuscated / evasion variants
-    "claw code",
+    # Specific lure phrases
     "claude harness decoded",
-
-    # Cracked / unlock / bypass claims (common lure copy)
-    "claude cracked",
     "claude enterprise unlock",
-    "claude unlock",
-    "claude activator",
-    "claude keygen",
-    "claude bypass",
 
-    # Free access claims
-    "claude code free",
-    "claude pro free",
+    # Known malware binary name (exact)
+    "ClaudeCode_x64",
 
-    # Install / setup executable lures
-    "ClaudeCode_x64",           # exact known malware binary name
-    "claude code setup",
-    "claude code installer",
-
-    # Research / RE repos
+    # Research / RE repos (part of the lure ecosystem)
     "claude code reverse engineer",
 
-    # README content search — catches repos directing users to malicious downloads
-    # even when they have no releases (download link is in the README itself).
-    # The .7z extension + x64 architecture is specific enough to avoid FPs.
+    # README content search — catches repos with the exact malicious download
+    # instruction pattern even when they have no GitHub Releases.
     "ClaudeCode_x64.7z in:readme",
+
+    # Fork detection — finds GitHub forks of the original malicious repo.
+    # fork:only = ONLY show forked repos (excludes originals).
+    # in:name = must have "leaked-claude-code" in the repo name.
+    # Combined with created:>= date filter, catches new forks as they appear.
+    # 1,483 total forks exist as of 2026-04-05.
+    "leaked-claude-code in:name fork:only",
 ]
 
 # ── Known IOCs (Zscaler ThreatLabz) ─────────────────────────────────────────
