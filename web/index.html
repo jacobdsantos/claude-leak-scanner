@@ -448,6 +448,9 @@
                 <label>
                     <input type="checkbox" id="filterDismissed" onchange="window._applyFilters()"> Show dismissed
                 </label>
+                <label>
+                    <input type="checkbox" id="filterHideForks" onchange="window._applyFilters()" checked> Hide forks
+                </label>
                 <button class="copy-list-btn" onclick="window._copyRepoList(this)">Copy repo list</button>
             </div>
 
@@ -708,7 +711,7 @@ function hideError() { document.getElementById('errorBanner').style.display='non
 
 // ── Fetch ─────────────────────────────────────────────────────────────────────
 async function fetchFindings() {
-    const { data, error } = await db.from('findings').select('*').order('score',{ascending:false});
+    const { data, error } = await db.from('findings').select('*').order('score',{ascending:false}).limit(5000);
     if (error) throw new Error(error.message);
     return data || [];
 }
@@ -869,6 +872,10 @@ function buildRepoRow(f, i) {
     tr.dataset.severity  = f.severity||'';
     tr.dataset.dismissed = f.dismissed?'true':'false';
     tr.dataset.score     = String(f.score);
+    // Detect forks: reasons contain "fork of leaked-claude-code" or repo name ends with /leaked-claude-code
+    const isFork = (Array.isArray(f.reasons) && f.reasons.some(r => r.includes('fork of leaked-claude-code'))) ||
+                   (f.repo_name && f.repo_name.endsWith('/leaked-claude-code'));
+    tr.dataset.fork = isFork ? 'true' : 'false';
     tr.onclick = () => window._toggleDetails(detailId);
 
     // Platform (col 0 — severity border here via CSS)
@@ -1010,6 +1017,9 @@ function renderRepos(findings) {
         nodes.push(m, d);
     });
     tbody.replaceChildren(...nodes);
+
+    // Apply filters immediately (e.g. hide forks by default)
+    window._applyFilters();
 }
 
 // ── Build VT row ──────────────────────────────────────────────────────────────
@@ -1189,11 +1199,13 @@ window._applyFilters = function() {
     const plat=document.getElementById('filterPlatform').value;
     const sev=document.getElementById('filterSeverity').value;
     const showD=document.getElementById('filterDismissed').checked;
+    const hideForks=document.getElementById('filterHideForks')?.checked ?? false;
     document.querySelectorAll('#reposBody .finding-row').forEach(row=>{
         let show=true;
         if(plat&&row.dataset.platform!==plat) show=false;
         if(sev&&row.dataset.severity!==sev)   show=false;
         if(!showD&&row.dataset.dismissed==='true') show=false;
+        if(hideForks&&row.dataset.fork==='true') show=false;
         row.style.display=show?'':'none';
         const next=row.nextElementSibling;
         if(next&&!next.classList.contains('finding-row')) next.style.display=show?'':'none';
