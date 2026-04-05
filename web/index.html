@@ -6,605 +6,276 @@
     <title>Lure Monitor — Threat Intelligence Console</title>
     <link rel="stylesheet" href="static/style.css">
     <style>
-        /* ── Layout shell ──────────────────────────────────────────────── */
+        /* ── Base ───────────────────────────────────────────────────────── */
         html, body { height: 100%; overflow: hidden; }
 
-        .app-shell {
+        /* ── Top navigation (embedded in header) ───────────────────────── */
+        .top-nav {
             display: flex;
-            height: calc(100vh - 48px);
-        }
-
-        /* ── Sidebar ───────────────────────────────────────────────────── */
-        .sidebar {
-            width: 172px;
-            flex-shrink: 0;
-            background: var(--surface-1);
-            border-right: 1px solid var(--edge);
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-        }
-
-        .sidebar-nav {
-            padding: 10px 8px 0;
-            display: flex;
-            flex-direction: column;
+            align-items: center;
             gap: 2px;
+            margin-left: 20px;
         }
 
         .nav-item {
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 9px 10px;
+            gap: 6px;
+            padding: 5px 12px;
             border-radius: 2px;
             cursor: pointer;
-            color: var(--text-secondary);
+            color: var(--text-ghost);
             font-family: var(--font-ui);
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 700;
             letter-spacing: 1.5px;
             text-transform: uppercase;
             border: none;
             background: none;
-            width: 100%;
-            text-align: left;
             transition: background 0.1s, color 0.1s;
+            white-space: nowrap;
         }
 
-        .nav-item:hover { background: var(--surface-2); color: var(--text-primary); }
+        .nav-item:hover  { background: var(--surface-2); color: var(--text-primary); }
         .nav-item.active { background: var(--accent-dim); color: var(--accent); }
 
-        .nav-icon { font-size: 12px; flex-shrink: 0; width: 16px; text-align: center; }
-        .nav-label { flex: 1; }
-
         .nav-count {
-            margin-left: auto;
-            font-size: 11px;
             font-family: var(--font-data);
+            font-size: 10px;
             background: var(--surface-2);
             color: var(--text-secondary);
-            padding: 1px 7px;
-            border-radius: 10px;
-        }
-
-        .nav-item.active .nav-count {
-            background: var(--accent-dim);
-            color: var(--accent);
-        }
-
-        .nav-separator { height: 1px; background: var(--edge); margin: 10px 8px; }
-
-        .nav-new {
-            font-size: 9px;
-            font-weight: 700;
-            color: var(--sig-active);
-            font-family: var(--font-data);
-            background: rgba(46, 213, 115, 0.1);
-            padding: 1px 5px;
+            padding: 1px 6px;
             border-radius: 8px;
         }
 
-        /* Sidebar severity mini-stats */
-        .sidebar-severity {
-            padding: 10px 14px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
+        .nav-item.active .nav-count { background: var(--accent-dim); color: var(--accent); }
+
+        .nav-new {
+            font-size: 9px; font-weight: 700;
+            color: var(--sig-active); font-family: var(--font-data);
+            background: rgba(16, 185, 129, 0.1);
+            padding: 1px 5px; border-radius: 6px;
         }
 
-        .sev-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 11px;
-        }
-
-        .sev-dot {
-            width: 5px; height: 5px;
-            border-radius: 50%;
-            flex-shrink: 0;
-        }
-
-        .sev-dot.critical { background: var(--sig-critical); }
-        .sev-dot.high     { background: var(--sig-high); }
-        .sev-dot.medium   { background: var(--sig-medium); }
-        .sev-dot.low      { background: var(--sig-low); }
-
-        .sev-name {
-            color: var(--text-secondary);
-            flex: 1;
-            font-family: var(--font-ui);
-            font-weight: 700;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-            font-size: 10px;
-        }
-
-        .sev-val {
-            color: var(--text-primary);
-            font-family: var(--font-data);
-        }
-
-        .sidebar-footer {
-            margin-top: auto;
-            padding: 10px 14px;
-            border-top: 1px solid var(--edge);
-            font-size: 11px;
-            color: var(--text-secondary);
-        }
-
+        /* ── Scan running indicator (in header) ────────────────────────── */
         .scan-running-indicator {
-            display: none;
-            align-items: center;
-            gap: 6px;
-            color: var(--sig-active);
-            font-family: var(--font-data);
-            font-size: 10px;
+            display: none; align-items: center; gap: 6px;
+            color: var(--sig-active); font-family: var(--font-data); font-size: 10px;
         }
 
         .scan-running-indicator::before {
-            content: '';
-            width: 5px; height: 5px;
-            border-radius: 50%;
-            background: var(--sig-active);
-            flex-shrink: 0;
+            content: ''; width: 5px; height: 5px; border-radius: 50%;
+            background: var(--sig-active); flex-shrink: 0;
             animation: pulse 1.2s ease-in-out infinite;
         }
 
         @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-        /* ── Main content ──────────────────────────────────────────────── */
-        .main-content {
-            flex: 1;
-            min-width: 0;
-            overflow-y: auto;
+        /* ── App main (no sidebar) ─────────────────────────────────────── */
+        .app-main {
+            height: calc(100vh - 56px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
             background: var(--surface-0);
         }
 
+        /* ── Section panes ─────────────────────────────────────────────── */
         .section-pane { display: none; }
-        .section-pane.active { display: block; animation: fadeIn 0.18s ease; }
+        .section-pane.active {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+            animation: fadeIn 0.18s ease;
+        }
+
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
         .section-header {
-            display: flex;
-            align-items: center;
+            display: flex; align-items: center;
             justify-content: space-between;
-            padding: 14px 20px 10px;
+            padding: 12px 20px 10px;
             border-bottom: 1px solid var(--edge);
-            gap: 12px;
+            gap: 12px; flex-shrink: 0;
         }
 
         .section-title {
-            font-family: var(--font-display);
-            font-size: 14px;
-            font-weight: 800;
-            color: var(--text-max);
-            letter-spacing: 2px;
-            text-transform: uppercase;
+            font-family: var(--font-display); font-size: 14px;
+            font-weight: 800; color: var(--text-max);
+            letter-spacing: 2px; text-transform: uppercase;
         }
 
-        .section-meta {
-            font-family: var(--font-data);
-            font-size: 11px;
-            color: var(--text-ghost);
+        .section-meta { font-family: var(--font-data); font-size: 11px; color: var(--text-ghost); }
+
+        /* ── Dashboard bento grid ──────────────────────────────────────── */
+        .dash-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto 1fr 1fr 1fr;
+            gap: 1px;
+            background: var(--edge);
+            flex: 1;
+            min-height: 0;
         }
 
-        /* ── Dashboard section ─────────────────────────────────────────── */
-        .dashboard-body {
-            padding: 16px 20px;
+        .dash-campaign {
+            grid-column: 1 / -1;
+            background: var(--surface-0);
+        }
+
+        .dash-cell {
+            background: var(--surface-0);
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            overflow: hidden;
         }
 
-        /* Campaign card */
+        .dash-cell-hdr {
+            font-family: var(--font-data);
+            font-size: 9px; font-weight: 400;
+            text-transform: uppercase; letter-spacing: 2px;
+            color: var(--text-ghost);
+            padding: 7px 14px 5px;
+            border-bottom: 1px solid var(--edge);
+            flex-shrink: 0;
+            background: var(--surface-1);
+        }
+
+        .dash-cell-body {
+            flex: 1; overflow-y: auto;
+            padding: 10px 14px;
+        }
+
+        /* ── Campaign strip ─────────────────────────────────────────────── */
         .campaign-card {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            padding: 14px 18px;
-            background: linear-gradient(135deg, var(--surface-1) 0%, var(--surface-2) 100%);
-            border: 1px solid var(--edge);
-            border-radius: 2px;
+            display: flex; align-items: center;
+            gap: 0; padding: 10px 18px;
             border-left: 3px solid var(--sig-critical);
-            flex-wrap: wrap;
+            background: var(--surface-1);
         }
 
-        .campaign-card-body { flex: 1; }
+        .campaign-card-body { flex: 1; min-width: 0; }
 
         .campaign-card-title {
-            font-family: var(--font-display);
-            font-size: 13px;
-            font-weight: 800;
-            color: var(--text-max);
-            letter-spacing: 1px;
+            font-family: var(--font-display); font-size: 13px;
+            font-weight: 800; color: var(--text-max); letter-spacing: 1px;
         }
 
         .campaign-card-meta {
-            font-family: var(--font-data);
-            font-size: 10px;
-            color: var(--text-ghost);
-            margin-top: 3px;
-            letter-spacing: 0.3px;
+            font-family: var(--font-data); font-size: 10px;
+            color: var(--text-ghost); margin-top: 2px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
 
         .campaign-card-stat {
-            text-align: center;
-            padding: 0 14px;
-            border-left: 1px solid var(--edge);
+            text-align: center; padding: 0 16px;
+            border-left: 1px solid var(--edge); flex-shrink: 0;
         }
 
         .campaign-card-stat .val {
-            font-family: var(--font-display);
-            font-size: 20px;
-            font-weight: 800;
-            color: var(--text-max);
+            font-family: var(--font-display); font-size: 22px;
+            font-weight: 800; color: var(--text-max); line-height: 1.1;
         }
 
         .campaign-card-stat .lbl {
-            font-family: var(--font-data);
-            font-size: 9px;
-            color: var(--text-ghost);
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
+            font-family: var(--font-data); font-size: 9px;
+            color: var(--text-ghost); text-transform: uppercase; letter-spacing: 1.5px;
         }
 
-        /* Severity distribution */
-        .sev-dist-label {
-            font-family: var(--font-ui);
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            color: var(--text-secondary);
-            margin-bottom: 8px;
-        }
+        /* ── Timeline ───────────────────────────────────────────────────── */
+        .timeline-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+        .timeline-label { width: 44px; text-align: right; color: var(--text-ghost); font-family: var(--font-data); font-size: 10px; flex-shrink: 0; }
+        .timeline-bar-track { flex: 1; height: 14px; background: var(--surface-2); border-radius: 1px; overflow: hidden; }
+        .timeline-bar { height: 100%; border-radius: 1px; transition: width 0.4s; min-width: 2px; }
+        .timeline-bar.mixed { background: linear-gradient(90deg, var(--sig-critical) 0%, var(--accent) 100%); }
+        .timeline-count { width: 28px; font-family: var(--font-data); font-size: 11px; color: var(--text-ghost); }
 
-        .sev-dist-track {
-            height: 5px;
-            border-radius: 1px;
-            background: var(--surface-2);
-            display: flex;
-            overflow: hidden;
-            margin-bottom: 10px;
-        }
-
-        .sev-dist-seg { height: 100%; transition: width 0.4s; }
-        .sev-dist-seg.critical { background: var(--sig-critical); }
-        .sev-dist-seg.high     { background: var(--sig-high); }
-        .sev-dist-seg.medium   { background: var(--sig-medium); }
-        .sev-dist-seg.low      { background: var(--sig-low); }
-
-        .sev-dist-legend { display: flex; gap: 16px; flex-wrap: wrap; }
-
-        .sev-legend-item {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            font-family: var(--font-ui);
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            letter-spacing: 0.5px;
-        }
-
-        .sev-legend-dot { width: 7px; height: 7px; border-radius: 1px; flex-shrink: 0; }
-        .sev-legend-count { font-family: var(--font-data); margin-left: 2px; }
-
-        /* 7-day timeline */
-        .timeline-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 3px;
-            font-size: 11px;
-        }
-
-        .timeline-label {
-            width: 48px;
-            text-align: right;
-            color: var(--text-ghost);
-            font-family: var(--font-data);
-            font-size: 10px;
-            flex-shrink: 0;
-        }
-
-        .timeline-bar-track {
-            flex: 1;
-            height: 12px;
-            background: var(--surface-2);
-            border-radius: 1px;
-            overflow: hidden;
-        }
-
-        .timeline-bar {
-            height: 100%;
-            border-radius: 1px;
-            transition: width 0.4s;
-            min-width: 2px;
-        }
-
-        .timeline-bar.critical { background: var(--sig-critical); }
-        .timeline-bar.high     { background: var(--sig-high); }
-        .timeline-bar.medium   { background: var(--sig-medium); }
-        .timeline-bar.mixed    { background: linear-gradient(90deg, var(--sig-critical) 0%, var(--accent) 100%); }
-
-        .timeline-count {
-            width: 28px;
-            font-family: var(--font-data);
-            font-size: 11px;
-            color: var(--text-ghost);
-        }
-
-        /* Today's threats feed */
+        /* ── New today feed ─────────────────────────────────────────────── */
         .threat-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 7px 10px;
-            border-radius: 2px;
-            border: 1px solid var(--edge);
-            background: var(--surface-1);
-            margin-bottom: 4px;
-            cursor: pointer;
+            display: flex; align-items: center; gap: 8px;
+            padding: 6px 8px; border-radius: 2px;
+            border: 1px solid var(--edge); background: var(--surface-1);
+            margin-bottom: 3px; cursor: pointer;
             transition: background 0.1s, border-color 0.1s;
         }
-
         .threat-row:hover { background: var(--surface-2); border-color: var(--edge-bright); }
-
-        .threat-row .score-pill {
-            font-family: var(--font-data);
-            font-size: 11px;
-            padding: 2px 7px;
-            border-radius: 1px;
-            flex-shrink: 0;
-            background: var(--surface-2);
-            color: var(--text-secondary);
-        }
-
+        .threat-row .score-pill { font-family: var(--font-data); font-size: 10px; padding: 2px 6px; border-radius: 1px; flex-shrink: 0; background: var(--surface-2); color: var(--text-secondary); }
         .threat-row[data-severity="CRITICAL"] .score-pill { background: var(--sig-critical-dim); color: var(--sig-critical); }
         .threat-row[data-severity="HIGH"]     .score-pill { background: var(--sig-high-dim);     color: var(--sig-high); }
         .threat-row[data-severity="MEDIUM"]   .score-pill { background: var(--sig-medium-dim);   color: var(--sig-medium); }
-
-        .threat-row .threat-name {
-            flex: 1;
-            font-family: var(--font-data);
-            font-size: 12px;
-            color: var(--text-primary);
-            min-width: 0;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
+        .threat-row .threat-name { flex: 1; font-family: var(--font-data); font-size: 11px; color: var(--text-primary); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .threat-row .threat-platform { font-size: 10px; }
 
-        /* Platform bar for dashboard */
-        .dash-platform-bar { display: flex; flex-wrap: wrap; gap: 6px; }
-
-        /* Search bar */
-        .search-bar {
-            width: 200px;
-            padding: 5px 10px;
-            border: 1px solid var(--edge);
-            border-radius: 2px;
-            background: var(--surface-2);
-            color: var(--text-primary);
-            font-family: var(--font-data);
-            font-size: 12px;
-            outline: none;
-            transition: border-color 0.12s;
-        }
-
+        /* ── Search / filter / buttons ──────────────────────────────────── */
+        .search-bar { width: 200px; padding: 5px 10px; border: 1px solid var(--edge); border-radius: 2px; background: var(--surface-2); color: var(--text-primary); font-family: var(--font-data); font-size: 12px; outline: none; transition: border-color 0.12s; }
         .search-bar:focus { border-color: var(--accent); }
         .search-bar::placeholder { color: var(--text-ghost); }
-
-        /* Button group */
         .btn-group { display: flex; gap: 4px; align-items: center; }
 
-        /* Keyboard shortcut hint */
-        .kbd {
-            display: inline-block;
-            padding: 1px 5px;
-            border-radius: 2px;
-            background: var(--surface-2);
-            border: 1px solid var(--edge);
-            font-family: var(--font-data);
-            font-size: 9px;
-            color: var(--text-void);
-            margin-left: 4px;
-        }
-
-        /* ── Toast notifications ─────────────────────────────────────── */
-        #toast-container {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            z-index: 9999;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .toast {
-            padding: 10px 16px;
-            border-radius: 2px;
-            font-family: var(--font-ui);
-            font-size: 12px;
-            font-weight: 700;
-            letter-spacing: 1px;
-            color: var(--void);
-            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
-            animation: toastIn 0.25s ease, toastOut 0.25s ease 2.7s forwards;
-        }
-
+        /* ── Toast ──────────────────────────────────────────────────────── */
+        #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+        .toast { padding: 10px 16px; border-radius: 2px; font-family: var(--font-ui); font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--void); box-shadow: 0 4px 24px rgba(0,0,0,0.5); animation: toastIn 0.25s ease, toastOut 0.25s ease 2.7s forwards; }
         .toast.success { background: var(--sig-active); }
         .toast.error   { background: var(--sig-critical); color: var(--text-max); }
         .toast.info    { background: var(--accent); }
-
         @keyframes toastIn  { from { transform: translateX(80px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateY(8px); } }
 
-        /* ── Error banner ────────────────────────────────────────────── */
-        #errorBanner {
-            display: none;
-            padding: 10px 20px;
-            background: var(--sig-critical-dim);
-            border-bottom: 1px solid var(--sig-critical);
-            color: var(--sig-critical);
-            font-family: var(--font-ui);
-            font-size: 12px;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-        }
+        /* ── Error banner ───────────────────────────────────────────────── */
+        #errorBanner { display: none; padding: 10px 20px; background: var(--sig-critical-dim); border-bottom: 1px solid var(--sig-critical); color: var(--sig-critical); font-family: var(--font-ui); font-size: 12px; font-weight: 600; letter-spacing: 0.5px; flex-shrink: 0; }
+        #errorBanner button { margin-left: 12px; background: none; border: 1px solid currentColor; color: inherit; padding: 3px 10px; border-radius: 2px; cursor: pointer; font-family: var(--font-ui); font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
 
-        #errorBanner button {
-            margin-left: 12px;
-            background: none;
-            border: 1px solid currentColor;
-            color: inherit;
-            padding: 3px 10px;
-            border-radius: 2px;
-            cursor: pointer;
-            font-family: var(--font-ui);
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-        }
-
-        /* Scan history inside dashboard */
-        .dash-scan-history .scan-history { border: none; padding: 0; margin: 0; }
-
-        /* ── Covered IOCs section ────────────────────────────────────── */
-        .covered-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px 16px;
-            cursor: pointer;
-            user-select: none;
-            color: var(--text-secondary);
-            font-family: var(--font-ui);
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            transition: background 0.1s;
-        }
-
+        /* ── Covered IOCs ───────────────────────────────────────────────── */
+        .covered-header { display: flex; align-items: center; gap: 10px; padding: 10px 16px; cursor: pointer; user-select: none; color: var(--text-secondary); font-family: var(--font-ui); font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; transition: background 0.1s; }
         .covered-header:hover { background: var(--surface-1); }
-
-        .covered-count {
-            background: var(--surface-2);
-            padding: 1px 8px;
-            border-radius: 10px;
-            font-family: var(--font-data);
-            font-size: 11px;
-        }
-
+        .covered-count { background: var(--surface-2); padding: 1px 8px; border-radius: 10px; font-family: var(--font-data); font-size: 11px; }
         .covered-chevron { margin-left: auto; font-size: 10px; }
     </style>
 </head>
 <body>
 
 <!-- ── Header ────────────────────────────────────────────────────────────── -->
-<header class="header">
-    <h1><span>&#9632;</span> Lure Monitor</h1>
+<header class="header" style="height:56px;">
+    <div style="display:flex;align-items:center;">
+        <h1><span>&#9632;</span> Lure Monitor</h1>
+        <nav class="top-nav">
+            <button class="nav-item active" id="navDashboard" onclick="window._switchSection('dashboard')">Dashboard</button>
+            <button class="nav-item" id="navRepos" onclick="window._switchSection('repos')">
+                Repos <span class="nav-count" id="navCountRepos">&ndash;</span>
+                <span class="nav-new" id="navNewToday" style="display:none;"></span>
+            </button>
+            <button class="nav-item" id="navVt" onclick="window._switchSection('vt')">
+                VT Files <span class="nav-count" id="navCountVt">&ndash;</span>
+            </button>
+        </nav>
+    </div>
     <div class="header-actions">
+        <span class="scan-running-indicator" id="scanRunning">SCANNING</span>
+        <span class="status-beacon checking" id="campStatus">Checking</span>
         <span id="lastScanLabel" style="font-family:var(--font-data);font-size:11px;color:var(--text-ghost);"></span>
     </div>
 </header>
 
-<!-- ── App Shell ─────────────────────────────────────────────────────────── -->
-<div class="app-shell">
+<!-- ── App Main ───────────────────────────────────────────────────────────── -->
+<div class="app-main">
 
-    <!-- Sidebar -->
-    <aside class="sidebar">
-        <nav class="sidebar-nav">
-            <button class="nav-item active" id="navDashboard" onclick="window._switchSection('dashboard')">
-                <span class="nav-icon">&#9955;</span>
-                <span class="nav-label">Dashboard</span>
-                <span class="kbd">1</span>
-            </button>
+    <!-- Error banner -->
+    <div id="errorBanner">
+        <span id="errorText"></span>
+        <button onclick="window._retry()">Retry</button>
+    </div>
 
-            <div class="nav-separator"></div>
+    <!-- ══ Section 1: Dashboard ════════════════════════════════════════════ -->
+    <div class="section-pane active" id="sectionDashboard">
+        <div class="dash-grid">
 
-            <button class="nav-item" id="navRepos" onclick="window._switchSection('repos')">
-                <span class="nav-icon">&#8801;</span>
-                <span class="nav-label">Repositories</span>
-                <span class="kbd">2</span>
-                <span class="nav-count" id="navCountRepos">&ndash;</span>
-                <span class="nav-new" id="navNewToday" style="display:none;"></span>
-            </button>
-
-            <button class="nav-item" id="navVt" onclick="window._switchSection('vt')">
-                <span class="nav-icon">&#11041;</span>
-                <span class="nav-label">VT Files</span>
-                <span class="kbd">3</span>
-                <span class="nav-count" id="navCountVt">&ndash;</span>
-            </button>
-        </nav>
-
-        <div class="nav-separator"></div>
-
-        <!-- Severity breakdown -->
-        <div class="sidebar-severity">
-            <div class="sev-row">
-                <span class="sev-dot critical"></span>
-                <span class="sev-name">Critical</span>
-                <span class="sev-val" id="sideCritical"><span class="shimmer">0</span></span>
-            </div>
-            <div class="sev-row">
-                <span class="sev-dot high"></span>
-                <span class="sev-name">High</span>
-                <span class="sev-val" id="sideHigh"><span class="shimmer">0</span></span>
-            </div>
-            <div class="sev-row">
-                <span class="sev-dot medium"></span>
-                <span class="sev-name">Medium</span>
-                <span class="sev-val" id="sideMedium"><span class="shimmer">0</span></span>
-            </div>
-            <div class="sev-row">
-                <span class="sev-dot low"></span>
-                <span class="sev-name">Low</span>
-                <span class="sev-val" id="sideLow"><span class="shimmer">0</span></span>
-            </div>
-        </div>
-
-        <!-- Footer -->
-        <div class="sidebar-footer">
-            <div class="scan-running-indicator" id="scanRunning">SCANNING</div>
-            <div id="sideLastScan" style="font-family:var(--font-data);font-size:10px;color:var(--text-ghost);"></div>
-        </div>
-    </aside>
-
-    <!-- Main Content -->
-    <main class="main-content">
-
-        <!-- Error banner -->
-        <div id="errorBanner">
-            <span id="errorText"></span>
-            <button onclick="window._retry()">Retry</button>
-        </div>
-
-        <!-- ══ Section 1: Dashboard ════════════════════════════════════════ -->
-        <div class="section-pane active" id="sectionDashboard">
-            <div class="section-header">
-                <span class="section-title">Overview</span>
-                <span class="section-meta" id="dashMeta">&ndash;</span>
-            </div>
-
-            <div class="dashboard-body">
-                <!-- Campaign pulse card -->
+            <!-- Campaign strip — full width -->
+            <div class="dash-campaign">
                 <div class="campaign-card">
                     <div class="campaign-card-body">
-                        <div style="display:flex;align-items:center;gap:10px;margin-bottom:5px;">
-                            <span class="status-beacon checking" id="campStatus">Checking</span>
-                            <div class="campaign-card-title">TradeAI Rotating Lure Campaign</div>
-                        </div>
-                        <div class="campaign-card-meta">Vidar v18.7 + GhostSocks SOCKS5 + PureLogs + AMOS | 25+ brand lures | Active since Feb 2026</div>
+                        <div class="campaign-card-title">TradeAI Rotating Lure Campaign</div>
+                        <div class="campaign-card-meta">Vidar v18.7 + GhostSocks SOCKS5 + PureLogs + AMOS &nbsp;|&nbsp; 25+ brand lures &nbsp;|&nbsp; Active since Feb 2026</div>
                     </div>
                     <div class="campaign-card-stat">
                         <div class="val" id="campRepos">&ndash;</div>
@@ -627,46 +298,44 @@
                         <div class="lbl">Need Action</div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Action queue -->
-                <div>
-                    <div class="sev-dist-label">Action Queue</div>
+            <!-- Row 2: Action Queue | 7-Day Timeline -->
+            <div class="dash-cell">
+                <div class="dash-cell-hdr">Action Queue</div>
+                <div class="dash-cell-body">
                     <div id="actionQueue" class="action-queue"></div>
                 </div>
+            </div>
+            <div class="dash-cell">
+                <div class="dash-cell-hdr">7-Day Activity</div>
+                <div class="dash-cell-body" id="timeline"></div>
+            </div>
 
-                <!-- Payload tracker -->
-                <div>
-                    <div class="sev-dist-label">Payload Families — VT File Intelligence</div>
-                    <div id="payloadTracker"></div>
-                </div>
+            <!-- Row 3: New Today | Payload Families -->
+            <div class="dash-cell">
+                <div class="dash-cell-hdr">New Infrastructure Today</div>
+                <div class="dash-cell-body" id="topThreats"></div>
+            </div>
+            <div class="dash-cell">
+                <div class="dash-cell-hdr">Payload Families</div>
+                <div class="dash-cell-body" id="payloadTracker"></div>
+            </div>
 
-                <!-- New owner accounts -->
-                <div>
-                    <div class="sev-dist-label">New Threat Actor Accounts — This Week</div>
-                    <div id="newAccounts"></div>
-                </div>
-
-                <!-- 7-day timeline -->
-                <div>
-                    <div class="sev-dist-label">7-Day Activity</div>
-                    <div id="timeline"></div>
-                </div>
-
-                <!-- New infrastructure today -->
-                <div>
-                    <div class="sev-dist-label">New Infrastructure — Non-Fork Repos Today</div>
-                    <div id="topThreats"></div>
-                </div>
-
-                <!-- Scan history -->
-                <div class="dash-scan-history">
-                    <div class="sev-dist-label">Scan History</div>
-                    <div class="scan-history">
-                        <ul class="scan-list" id="scanList"></ul>
-                    </div>
+            <!-- Row 4: New Accounts | Scan History -->
+            <div class="dash-cell">
+                <div class="dash-cell-hdr">New Threat Actor Accounts — This Week</div>
+                <div class="dash-cell-body" id="newAccounts"></div>
+            </div>
+            <div class="dash-cell">
+                <div class="dash-cell-hdr">Scan History</div>
+                <div class="dash-cell-body">
+                    <ul class="scan-list" id="scanList"></ul>
                 </div>
             </div>
+
         </div>
+    </div>
 
         <!-- ══ Section 2: Repositories ══════════════════════════════════════ -->
         <div class="section-pane" id="sectionRepos">
@@ -781,7 +450,6 @@
             </div>
         </div>
 
-    </main>
 </div>
 
 <!-- Toast container -->
@@ -927,22 +595,6 @@ function isSMTHNeeded(reasons) {
     if (/^(HEUR|Mal_|TROJ_GEN|HeurGen)/i.test(det)) return true;
     const parts = det.split('.');
     return parts.length < 4 || parts.some(p => !p.trim());
-}
-
-// ── Sidebar severity ─────────────────────────────────────────────────────────
-function updateSidebarSeverity(findings) {
-    let critical = 0, high = 0, medium = 0, low = 0;
-    for (const f of findings) {
-        if (f.dismissed) continue;
-        if      (f.severity === 'CRITICAL') critical++;
-        else if (f.severity === 'HIGH')     high++;
-        else if (f.severity === 'MEDIUM')   medium++;
-        else                                low++;
-    }
-    $('sideCritical').textContent = critical;
-    $('sideHigh').textContent     = high;
-    $('sideMedium').textContent   = medium;
-    $('sideLow').textContent      = low;
 }
 
 // ── Nav counts ───────────────────────────────────────────────────────────────
@@ -1547,7 +1199,7 @@ function buildVtRow(f, i) {
     tr.dataset.dismissed = f.dismissed ? 'true' : 'false'; tr.dataset.score = String(f.score);
     tr.onclick = () => window._toggleDetails(detailId);
 
-    // Severity / COVERED + SM-TH badge
+    // Severity / COVERED
     const tdSev = document.createElement('td');
     if (f.platform === 'vt_known_ioc') {
         const cb = document.createElement('span'); cb.className = 'badge-covered'; cb.textContent = 'COVERED';
@@ -1555,10 +1207,6 @@ function buildVtRow(f, i) {
     } else {
         const sb = document.createElement('span'); sb.className = 'badge badge-' + (f.severity || '').toLowerCase();
         sb.textContent = f.severity || ''; tdSev.appendChild(sb);
-        if (isSMTHNeeded(reasons)) {
-            const smth = document.createElement('span'); smth.className = 'badge-smth'; smth.textContent = 'SM-TH';
-            tdSev.appendChild(smth);
-        }
     }
     tr.appendChild(tdSev);
 
@@ -1695,9 +1343,7 @@ function renderScans(scans) {
     const latest = scans[0];
     if (latest?.started_at) {
         const ago = timeAgo(latest.started_at);
-        const dm = $('dashMeta'); if (dm) dm.textContent = 'Last scan ' + ago;
         $('lastScanLabel').textContent = 'Last scan ' + ago;
-        $('sideLastScan').textContent = ago;
     }
     list.replaceChildren(...scans.map(s => {
         const li = document.createElement('li');
@@ -1841,7 +1487,6 @@ async function loadDashboard() {
     const [fr, sr] = await Promise.allSettled([fetchFindings(), fetchScans()]);
     if (fr.status === 'fulfilled') {
         const f = fr.value;
-        updateSidebarSeverity(f);
         updateNavCounts(f);
         renderCampaignPulse(f);
         renderActionQueue(f);
