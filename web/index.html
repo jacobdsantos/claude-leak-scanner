@@ -217,6 +217,79 @@
         .search-bar:focus { border-color: var(--accent); }
         .search-bar::placeholder { color: var(--text-ghost); }
 
+        
+        /* ── Polished buttons ────────────────────────────────────────── */
+        .action-btn {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 4px 10px; border-radius: 4px; border: 1px solid var(--edge-bright);
+            background: none; color: var(--text-secondary); cursor: pointer;
+            font-family: var(--font-ui); font-size: 11px; font-weight: 600;
+            text-decoration: none; transition: all 0.15s; white-space: nowrap;
+        }
+        .action-btn:hover { background: var(--surface-2); color: var(--text-primary); border-color: var(--accent); }
+        .action-btn.danger:hover { border-color: var(--sig-critical); color: var(--sig-critical); }
+        .action-btn.primary { background: var(--accent-dim); color: var(--accent); border-color: rgba(0,229,255,0.3); }
+        .action-btn.primary:hover { background: rgba(0,229,255,0.2); }
+
+        /* ── Toast notifications ─────────────────────────────────────── */
+        #toast-container {
+            position: fixed; bottom: 20px; right: 20px; z-index: 9999;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .toast {
+            padding: 10px 16px; border-radius: 6px; font-size: 12px;
+            font-family: var(--font-ui); color: var(--text-max);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s;
+            animation-fill-mode: forwards;
+        }
+        .toast.success { background: rgba(16,232,122,0.9); color: #0a0e14; }
+        .toast.error   { background: rgba(255,45,74,0.9); }
+        .toast.info    { background: rgba(0,229,255,0.9); color: #0a0e14; }
+        @keyframes toastIn  { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateY(10px); } }
+
+        /* ── Smooth row expand ───────────────────────────────────────── */
+        .row-details {
+            max-height: 0; overflow: hidden; opacity: 0;
+            transition: max-height 0.3s ease, opacity 0.2s ease, padding 0.2s ease;
+            padding: 0 14px;
+        }
+        .row-details.show {
+            max-height: 600px; opacity: 1; padding: 12px 14px;
+        }
+
+        /* ── Better table row hover ──────────────────────────────────── */
+        .finding-row { transition: background 0.1s; }
+        .finding-row:hover { background: var(--surface-raised) !important; }
+        .finding-row td { vertical-align: middle; }
+
+        /* ── Section transition ──────────────────────────────────────── */
+        .section-pane.active { animation: fadeIn 0.2s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ── Export button ───────────────────────────────────────────── */
+        .export-btn {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 5px 12px; border-radius: 4px;
+            border: 1px solid var(--edge-bright); background: none;
+            color: var(--text-secondary); cursor: pointer;
+            font-family: var(--font-ui); font-size: 11px; font-weight: 600;
+            transition: all 0.15s;
+        }
+        .export-btn:hover { background: var(--surface-2); color: var(--accent); border-color: var(--accent); }
+
+        /* ── Keyboard shortcut hints ─────────────────────────────────── */
+        .kbd {
+            display: inline-block; padding: 1px 5px; border-radius: 3px;
+            background: var(--surface-2); border: 1px solid var(--edge);
+            font-family: var(--font-data); font-size: 9px; color: var(--text-ghost);
+            margin-left: 4px;
+        }
+
+        /* ── Action button group ─────────────────────────────────────── */
+        .btn-group { display: flex; gap: 4px; align-items: center; }
+
         /* ── Findings table styles ─────────────────────────────────────── */
         .filter-bar {
             padding: 8px 16px; display: flex; gap: 10px; align-items: center;
@@ -311,21 +384,21 @@
 
             <button class="nav-item active" id="navDashboard" onclick="window._switchSection('dashboard')">
                 <span class="nav-icon">▣</span>
-                <span class="nav-label">Dashboard</span>
+                <span class="nav-label">Dashboard</span><span class="kbd">1</span>
             </button>
 
             <div class="nav-separator"></div>
 
             <button class="nav-item" id="navRepos" onclick="window._switchSection('repos')">
                 <span class="nav-icon">≡</span>
-                <span class="nav-label">Repositories</span>
+                <span class="nav-label">Repositories</span><span class="kbd">2</span>
                 <span class="nav-count" id="navCountRepos">–</span>
                 <span class="nav-new" id="navNewToday" style="display:none;"></span>
             </button>
 
             <button class="nav-item" id="navVt" onclick="window._switchSection('vt')">
                 <span class="nav-icon">⬡</span>
-                <span class="nav-label">VT Files</span>
+                <span class="nav-label">VT Files</span><span class="kbd">3</span>
                 <span class="nav-count" id="navCountVt">–</span>
             </button>
 
@@ -499,6 +572,7 @@
             <div class="section-header">
                 <span class="section-title">Repositories</span>
                 <span class="section-meta" id="reposMeta">–</span>
+                <button class="export-btn" onclick="window._exportCSV()">Export CSV</button>
             </div>
 
             <div class="filter-bar">
@@ -996,7 +1070,7 @@ window._copyHash = function(hash, btn) {
 // ── Dismiss ───────────────────────────────────────────────────────────────────
 window._dismiss = async function(id, btn) {
     const { error } = await db.from('findings').update({ dismissed:true }).eq('id',id);
-    if (error) { alert('Dismiss failed: '+error.message); return; }
+    if (error) { showToast('Dismiss failed: '+error.message, 'error'); return; }
     const mainTr = btn.closest('tr');
     if (mainTr) {
         mainTr.dataset.dismissed = 'true';
@@ -1004,6 +1078,7 @@ window._dismiss = async function(id, btn) {
         const det = mainTr.nextElementSibling;
         if (det && !det.classList.contains('finding-row')) det.style.display='none';
     }
+    showToast('Finding dismissed', 'success');
 };
 
 // ── Row expand ────────────────────────────────────────────────────────────────
@@ -1084,12 +1159,17 @@ function buildRepoRow(f, i) {
     } else { tdDate.textContent='–'; }
     tr.appendChild(tdDate);
 
-    // Actions — Dismiss only
-    const tdAct=document.createElement('td'); tdAct.style.whiteSpace='nowrap';
-    const dimBtn=document.createElement('button'); dimBtn.className='btn-dismiss'; dimBtn.textContent='✕';
-    dimBtn.style.cssText='padding:3px 8px;font-size:11px;'; dimBtn.title='Dismiss';
+    // Actions — Open + Dismiss
+    const tdAct=document.createElement('td');
+    const btnGrp=document.createElement('div'); btnGrp.className='btn-group';
+    const openBtn=document.createElement('a'); openBtn.className='action-btn';
+    openBtn.href=f.repo_url||'#'; openBtn.target='_blank'; openBtn.textContent='Open';
+    openBtn.onclick=e=>e.stopPropagation();
+    const dimBtn=document.createElement('button'); dimBtn.className='action-btn danger';
+    dimBtn.textContent='Dismiss';
     dimBtn.onclick=e=>{ e.stopPropagation(); window._dismiss(f.id,dimBtn); };
-    tdAct.appendChild(dimBtn); tr.appendChild(tdAct);
+    btnGrp.append(openBtn, dimBtn);
+    tdAct.appendChild(btnGrp); tr.appendChild(tdAct);
 
     // Detail row
     const trDet=document.createElement('tr'); const tdDet=document.createElement('td');
@@ -1405,9 +1485,7 @@ window._copyRepoList = function(btn) {
         .map(r => r.querySelector('.repo-link')?.textContent || '')
         .filter(Boolean);
     navigator.clipboard.writeText(names.join('\n')).then(() => {
-        btn.textContent = 'Copied ' + names.length + '!';
-        btn.classList.add('copied');
-        setTimeout(() => { btn.textContent = 'Copy repo list'; btn.classList.remove('copied'); }, 2000);
+        showToast('Copied ' + names.length + ' repos to clipboard', 'success');
     });
 };
 
@@ -1421,11 +1499,53 @@ window._copyVtHashes = function(btn) {
         })
         .filter(Boolean);
     navigator.clipboard.writeText(hashes.join('\n')).then(() => {
-        btn.textContent = 'Copied ' + hashes.length + '!';
-        btn.classList.add('copied');
-        setTimeout(() => { btn.textContent = 'Copy SHA256 list'; btn.classList.remove('copied'); }, 2000);
+        showToast('Copied ' + hashes.length + ' SHA256 hashes to clipboard', 'success');
     });
 };
+
+// ── Toast notifications ────────────────────────────────────────────────────────
+function showToast(message, type='info') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = 'toast ' + type;
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+// ── Export CSV ─────────────────────────────────────────────────────────────────
+window._exportCSV = function() {
+    const rows = document.querySelectorAll('#reposBody .finding-row');
+    const lines = ['Platform,Repository,Score,Severity,Stars,Listed,Created,URL'];
+    rows.forEach(row => {
+        if (row.style.display === 'none') return;
+        const cells = row.querySelectorAll('td');
+        const platform = cells[0]?.textContent?.trim() || '';
+        const repo     = row.querySelector('.repo-link')?.textContent || '';
+        const score    = cells[2]?.textContent?.trim() || '';
+        const stars    = cells[3]?.textContent?.trim() || '';
+        const releases = cells[4]?.textContent?.trim() || '';
+        const listed   = cells[5]?.textContent?.trim() || '';
+        const created  = cells[6]?.textContent?.trim() || '';
+        const url      = row.querySelector('.repo-link')?.href || '';
+        lines.push(`"${platform}","${repo}","${score}","${stars}","${releases}","${listed}","${created}","${url}"`);
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'lure-monitor-repos-' + new Date().toISOString().slice(0,10) + '.csv';
+    a.click();
+    showToast('Exported ' + (lines.length - 1) + ' repos to CSV', 'success');
+};
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+    // Don't trigger if typing in search bar
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (e.key === '1') window._switchSection('dashboard');
+    if (e.key === '2') window._switchSection('repos');
+    if (e.key === '3') window._switchSection('vt');
+});
 
 // ── Retry ─────────────────────────────────────────────────────────────────────
 window._retry = () => loadDashboard();
@@ -1445,5 +1565,6 @@ db.channel('scan-status')
 // ── Boot ──────────────────────────────────────────────────────────────────────
 loadDashboard();
 </script>
+<div id="toast-container"></div>
 </body>
 </html>
