@@ -74,11 +74,10 @@ SEARCH_QUERIES = [
     "ClaudeCode_x64.7z in:readme",
 
     # Fork detection — finds GitHub forks of the original malicious repo.
-    # fork:only = ONLY show forked repos (excludes originals).
-    # in:name = must have "leaked-claude-code" in the repo name.
-    # Combined with created:>= date filter, catches new forks as they appear.
-    # 1,483 total forks exist as of 2026-04-05.
-    "leaked-claude-code in:name fork:only",
+    # Quoted "leaked-claude-code" = exact phrase match (prevents FPs like
+    # open-claude-code-leaked-refactor which matched word-by-word).
+    # fork:only = ONLY show forked repos. 1,092 exact forks as of 2026-04-05.
+    '"leaked-claude-code" in:name fork:only',
 ]
 
 # ── Known IOCs (Zscaler ThreatLabz) ─────────────────────────────────────────
