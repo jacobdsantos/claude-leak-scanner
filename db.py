@@ -66,6 +66,8 @@ async def upsert_finding(client: AsyncClient, f: ScoredFinding) -> bool:
     else:
         record["first_seen"]  = existing.data[0].get("first_seen") or now
         record["scan_count"]  = (existing.data[0].get("scan_count") or 1) + 1
+        # PRESERVE dismissed status — don't un-dismiss on rescan
+        record["dismissed"]   = existing.data[0].get("dismissed", False)
 
     await client.table("findings").upsert(record, on_conflict="id").execute()
     return is_new

@@ -1081,7 +1081,8 @@ window._copyHash = function(hash, btn) {
 
 // ── Dismiss ───────────────────────────────────────────────────────────────────
 window._dismiss = async function(id, btn) {
-    const { error } = await db.from('findings').update({ dismissed:true }).eq('id',id);
+    // Use server-side RPC (SECURITY DEFINER) to bypass RLS for dismiss
+    const { error } = await db.rpc('dismiss_finding', { finding_id: id });
     if (error) { showToast('Dismiss failed: '+error.message, 'error'); return; }
     const mainTr = btn.closest('tr');
     if (mainTr) {
