@@ -458,16 +458,15 @@
                             <th onclick="window._sortTable('repos',0)">Platform</th>
                             <th onclick="window._sortTable('repos',1)">Repository</th>
                             <th onclick="window._sortTable('repos',2)">Score <span class="sort-arrow">&#9660;</span></th>
-                            <th onclick="window._sortTable('repos',3)">Severity</th>
-                            <th onclick="window._sortTable('repos',4)">Stars</th>
-                            <th onclick="window._sortTable('repos',5)">Releases</th>
+                            <th onclick="window._sortTable('repos',3)">Stars</th>
+                            <th onclick="window._sortTable('repos',4)">Releases</th>
                             <th>Listed</th>
-                            <th onclick="window._sortTable('repos',7)">First Seen</th>
+                            <th onclick="window._sortTable('repos',6)">First Seen</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="reposBody">
-                        <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-secondary);">Loading repositories...</td></tr>
+                        <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-secondary);">Loading repositories...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -892,13 +891,11 @@ function buildRepoRow(f, i) {
     }
     tr.appendChild(tdR);
 
-    // Score
-    const tdS=document.createElement('td'); tdS.className='mono'; tdS.textContent=String(f.score); tr.appendChild(tdS);
-
-    // Severity badge
-    const tdSev=document.createElement('td');
-    const sb=document.createElement('span'); sb.className='badge badge-'+(f.severity||'').toLowerCase(); sb.textContent=f.severity||'';
-    tdSev.appendChild(sb); tr.appendChild(tdSev);
+    // Score + Severity (combined)
+    const tdS=document.createElement('td');
+    const sb=document.createElement('span'); sb.className='badge badge-'+(f.severity||'').toLowerCase();
+    sb.textContent=f.score + ' ' + (f.severity||'');
+    tdS.appendChild(sb); tr.appendChild(tdS);
 
     // Stars
     const tdSt=document.createElement('td'); tdSt.textContent=String(f.stars??0); tr.appendChild(tdSt);
@@ -935,7 +932,7 @@ function buildRepoRow(f, i) {
 
     // Detail row
     const trDet=document.createElement('tr'); const tdDet=document.createElement('td');
-    tdDet.colSpan=9; tdDet.style.cssText='padding:0;border:none;';
+    tdDet.colSpan=8; tdDet.style.cssText='padding:0;border:none;';
     const div=document.createElement('div'); div.className='row-details'; div.id=detailId;
     const fh=document.createElement('h4'); fh.textContent='Flags ('+reasons.length+')'; div.appendChild(fh);
     const ul=document.createElement('ul');
@@ -970,7 +967,7 @@ function renderRepos(findings) {
     const repos  = findings.filter(f=>REPO_PLATFORMS.includes(f.platform));
     if (!repos.length) {
         const tr=document.createElement('tr'); const td=document.createElement('td');
-        td.colSpan=9; const em=document.createElement('div'); em.className='empty-state';
+        td.colSpan=8; const em=document.createElement('div'); em.className='empty-state';
         const ic=document.createElement('div'); ic.className='icon'; ic.textContent='\u{1F50D}';
         const p=document.createElement('p'); p.textContent='No repository findings yet. Scans run hourly via GitHub Actions.';
         em.append(ic,p); td.appendChild(em); tr.appendChild(td); tbody.replaceChildren(tr); return;
@@ -1002,7 +999,7 @@ function renderRepos(findings) {
             // Insert date header row
             const hdr = document.createElement('tr');
             const hdrTd = document.createElement('td');
-            hdrTd.colSpan = 9;
+            hdrTd.colSpan = 8;
             hdrTd.style.cssText = 'padding:10px 14px 6px;border:none;background:var(--surface-1);font-family:var(--font-ui);font-size:12px;font-weight:700;letter-spacing:0.04em;color:var(--text-primary);border-left:3px solid var(--accent);';
             hdrTd.textContent = dateLabel + '  (' + dateCount + ')';
             hdr.appendChild(hdrTd);

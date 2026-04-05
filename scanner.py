@@ -101,10 +101,23 @@ def score_repo(
     readme_lower = readme.lower()
     combined_text = readme_lower + " " + candidate.description.lower()
 
-    for pattern, weight, label in config.LURE_PATTERNS:
-        if re.search(pattern, combined_text, re.IGNORECASE):
-            score += weight
-            reasons.append(f"Lure keyword: {label}")
+    # Detect source mirrors — these just host the leaked TypeScript source
+    # with no malicious executables or download lures. Don't penalize them
+    # with lure keyword scores. Key phrases: "unmodified", "nothing has been added",
+    # "raw source", "for educational", "for reference", "analysis of".
+    is_source_mirror = bool(re.search(
+        r"(nothing\s+has\s+been\s+added|unmodified\s+(leak|source)|raw\s+source\s+as\s+leaked"
+        r"|for\s+educational|for\s+reference\s+purpose|analysis\s+of\s+(the\s+)?(claude|source))",
+        readme, re.IGNORECASE
+    )) and not bool(re.search(r"ClaudeCode_x64\.(7z|exe)", readme, re.IGNORECASE))
+
+    if not is_source_mirror:
+        for pattern, weight, label in config.LURE_PATTERNS:
+            if re.search(pattern, combined_text, re.IGNORECASE):
+                score += weight
+                reasons.append(f"Lure keyword: {label}")
+    else:
+        reasons.append("Source mirror (no malicious download lure — reduced scoring)")
 
     # ── README suspicious elements ──
     if re.search(r"!\[.*\]\(.*download.*\)", readme, re.IGNORECASE):
@@ -128,14 +141,10 @@ def score_repo(
     has_releases_download = bool(re.search(r"navigate\s+to\s+(the\s+)?releases.*page.*download", readme, re.IGNORECASE))
     has_extract_archive = bool(re.search(r"extract\s+(the\s+)?archive\s+to\s+a\s+permanent", readme, re.IGNORECASE))
 
-    if has_claudecode_archive and has_precompiled:
-        # HIGH confidence: exact lure combo from the original malicious README
-        score += 40
-        reasons.append("README matches malicious lure pattern: ClaudeCode_x64 archive + 'pre-compiled binaries'")
-    elif has_claudecode_archive and has_releases_download:
-        # HIGH confidence: archive name + specific Releases page download instruction
-        score += 35
-        reasons.append("README matches malicious lure pattern: ClaudeCode_x64 archive + Releases page download")
+    if has_claudecode_archive and (has_precompiled or has_releases_download):
+        # DEFINITIVE: exact lure combo from the original malicious README → force CRITICAL
+        score = 100
+        reasons.insert(0, "MALWARE DISTRIBUTION: ClaudeCode_x64 download lure in README")
     # No score for ClaudeCode_x64 alone without the lure combo —
     # star trackers, news articles, and analysis repos mention it in context.
     if has_extract_archive and has_claudecode_archive:

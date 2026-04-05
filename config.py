@@ -49,34 +49,20 @@ MIN_SCORE       = int(os.environ.get("MIN_SCORE", 5))
 #   - Zscaler: Known IOC repos idbzoomh/my3jie
 
 SEARCH_QUERIES = [
-    # Core leak name variants (covers "claude code leaked", "claude source leaked", etc.)
-    "claude leaked",
-    "claude sourcemap",
+    # Goal: find MALICIOUS repos distributing malware, NOT source mirrors or analysis.
+    # 4 precise queries — zero noise from discussion/mirror/analysis repos.
 
-    # Forks/clones of the original malicious repo (GitHub treats this as AND search)
+    # 1. Non-fork clones with "leaked-claude-code" in repo name
     "leaked-claude-code",
 
-    # Anthropic-branded lures
-    "anthropic leaked",
-
-    # Specific lure phrases
-    "claude harness decoded",
-    "claude enterprise unlock",
-
-    # Known malware binary name (exact)
+    # 2. Repos mentioning the malware binary name (exact)
     "ClaudeCode_x64",
 
-    # Research / RE repos (part of the lure ecosystem)
-    "claude code reverse engineer",
-
-    # README content search — catches repos with the exact malicious download
-    # instruction pattern even when they have no GitHub Releases.
+    # 3. README download lure — repos with the exact archive name in their README
     "ClaudeCode_x64.7z in:readme",
 
-    # Fork detection — finds GitHub forks of the original malicious repo.
-    # Quoted "leaked-claude-code" = exact phrase match (prevents FPs like
-    # open-claude-code-leaked-refactor which matched word-by-word).
-    # fork:only = ONLY show forked repos. 1,092 exact forks as of 2026-04-05.
+    # 4. GitHub forks of the original malicious repo (exact phrase match, forks only)
+    #    1,092+ forks as of 2026-04-05.
     '"leaked-claude-code" in:name fork:only',
 ]
 
