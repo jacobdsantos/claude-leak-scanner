@@ -53,48 +53,66 @@ class GitHubScanner(PlatformScanner):
         for query in queries:
             # GitHub search API: q=<query>+created:>=<date>
             search_q = f"{query} created:>={since_date}"
-            try:
-                resp = await http.get(
-                    f"{_API}/search/repositories",
-                    params={
-                        "q": search_q,
-                        "sort": "updated",
-                        "order": "desc",
-                        "per_page": 50,
-                    },
-                )
+            page = 1
+            max_pages = 20  # GitHub caps at 1,000 results (20 × 50)
 
-                if resp.status_code == 403:
-                    # Rate limited — log and stop querying
-                    logger.warning(f"GitHub rate limited on query: {query}")
-                    break
-                if resp.status_code != 200:
-                    logger.warning(f"GitHub search returned {resp.status_code} for: {query}")
-                    continue
-
-                data = resp.json()
-                items = data.get("items", [])
-                logger.info(f"GitHub search '{query}': {len(items)} results (total: {data.get('total_count', 0)})")
-
-            except Exception as e:
-                logger.error(f"GitHub search failed for '{query}': {e}")
-                continue
-
-            for repo in items:
-                name = repo.get("full_name", "")
-                if name and name not in all_repos:
-                    owner = repo.get("owner", {})
-                    all_repos[name] = RepoCandidate(
-                        platform="github",
-                        repo_id=name,
-                        repo_name=name,
-                        repo_url=repo.get("html_url", f"https://github.com/{name}"),
-                        description=repo.get("description", "") or "",
-                        owner_login=owner.get("login", ""),
-                        stars=repo.get("stargazers_count", 0),
-                        forks=repo.get("forks_count", 0),
-                        repo_created_at=repo.get("created_at", ""),
+            while page <= max_pages:
+                try:
+                    resp = await http.get(
+                        f"{_API}/search/repositories",
+                        params={
+                            "q": search_q,
+                            "sort": "updated",
+                            "order": "desc",
+                            "per_page": 50,
+                            "page": page,
+                        },
                     )
+
+                    if resp.status_code == 403:
+                        logger.warning(f"GitHub rate limited on query: {query} (page {page})")
+                        break
+                    if resp.status_code == 422:
+                        # GitHub returns 422 when page exceeds available results
+                        break
+                    if resp.status_code != 200:
+                        logger.warning(f"GitHub search returned {resp.status_code} for: {query}")
+                        break
+
+                    data = resp.json()
+                    items = data.get("items", [])
+                    total_count = data.get("total_count", 0)
+
+                    if page == 1:
+                        logger.info(f"GitHub search '{query}': {len(items)} results (total: {total_count})")
+                    else:
+                        logger.info(f"  Page {page}: +{len(items)} results for '{query}'")
+
+                except Exception as e:
+                    logger.error(f"GitHub search failed for '{query}' page {page}: {e}")
+                    break
+
+                # Process this page's items
+                for repo in items:
+                    name = repo.get("full_name", "")
+                    if name and name not in all_repos:
+                        owner = repo.get("owner", {})
+                        all_repos[name] = RepoCandidate(
+                            platform="github",
+                            repo_id=name,
+                            repo_name=name,
+                            repo_url=repo.get("html_url", f"https://github.com/{name}"),
+                            description=repo.get("description", "") or "",
+                            owner_login=owner.get("login", ""),
+                            stars=repo.get("stargazers_count", 0),
+                            forks=repo.get("forks_count", 0),
+                            repo_created_at=repo.get("created_at", ""),
+                        )
+
+                # Stop paginating if no more results or hit GitHub's 1,000 cap
+                if not items or len(items) < 50 or page * 50 >= min(total_count, 1000):
+                    break
+                page += 1
 
         # Check known malicious repos directly
         for known_repo in KNOWN_MALICIOUS_REPOS:
