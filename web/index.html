@@ -217,6 +217,25 @@
         .finding-row[data-platform="vt_known_ioc"] { opacity: 0.55; }
         .finding-row[data-platform="vt_known_ioc"]:hover { opacity: 0.85; }
 
+        
+        /* Copy button */
+        .copy-list-btn {
+            background: none; border: 1px solid var(--edge-bright); color: var(--text-secondary);
+            padding: 4px 10px; border-radius: 3px; cursor: pointer; font-size: 11px;
+            font-family: var(--font-ui); transition: all 0.15s; margin-left: auto;
+        }
+        .copy-list-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .copy-list-btn.copied { border-color: var(--sig-active); color: var(--sig-active); }
+
+        /* Listed badge */
+        .badge-listed {
+            display: inline-block; padding: 1px 5px; border-radius: 2px;
+            background: rgba(0,229,255,0.08); color: var(--accent);
+            font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
+            font-family: var(--font-ui); text-transform: uppercase;
+            border: 1px solid rgba(0,229,255,0.2);
+        }
+
         /* Shimmer */
         .shimmer { display: inline-block; width: 2ch; background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 3px; color: transparent; user-select: none; }
         @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
@@ -429,6 +448,7 @@
                 <label>
                     <input type="checkbox" id="filterDismissed" onchange="window._applyFilters()"> Show dismissed
                 </label>
+                <button class="copy-list-btn" onclick="window._copyRepoList(this)">Copy repo list</button>
             </div>
 
             <div class="findings-section">
@@ -441,11 +461,13 @@
                             <th onclick="window._sortTable('repos',3)">Severity</th>
                             <th onclick="window._sortTable('repos',4)">Stars</th>
                             <th onclick="window._sortTable('repos',5)">Releases</th>
+                            <th>Listed</th>
+                            <th onclick="window._sortTable('repos',7)">First Seen</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="reposBody">
-                        <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-secondary);">Loading repositories...</td></tr>
+                        <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-secondary);">Loading repositories...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -470,6 +492,7 @@
                 <label>
                     <input type="checkbox" id="vtFilterDismissed" onchange="window._applyVtFilters()"> Show dismissed
                 </label>
+                <button class="copy-list-btn" onclick="window._copyVtHashes(this)">Copy SHA256 list</button>
             </div>
 
             <div class="findings-section">
@@ -536,6 +559,126 @@ const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 const REPO_PLATFORMS = ['github','gitlab','codeberg','bitbucket','sourceforge'];
 const VT_PLATFORMS   = ['vt_livehunt','vt_retrohunt','vt_known_ioc'];
 const SEV_ORDER      = ['CRITICAL','HIGH','MEDIUM','LOW'];
+
+// 115 already-tracked repos
+const ALREADY_LISTED = new Set([
+  "0PeterAdel/ClaudeCode-Leak",
+  "182slash/Claude",
+  "3kh0/claude-code",
+  "5tarlight/lcc",
+  "760704887/claude-code-sourcemap",
+  "AnukarOP/claude-code-leaked",
+  "Bo1202/claude-code-source",
+  "CHRITH3/leaked-claude-code",
+  "CnOxx1/claude-code",
+  "CodingWorld-007/claw-agent-guide",
+  "Corleanus/claude-code-leaked",
+  "Cshaoguang/claude-code-sourcemap",
+  "GNSubrahmanyam/leaked-claude-code",
+  "Gorav22/Claude-code-leaked",
+  "Heipiao/leaked-claude-code",
+  "HildaM/claude-code-leaked",
+  "InlitX/claude-code-source",
+  "JamesFireStarter13/claude-code",
+  "Kawaii-GPT-ai/KawaiiGPT",
+  "KhaosLee/leaked-claude-code",
+  "LTX-desktop/LTX-2.3",
+  "Manick94/claude_source_leaked_code",
+  "Matloob11/Claude-code-leaked",
+  "Mazen-wedaa/leaked-claude-code",
+  "MikeDevBeddo/leaked-claude-code-vv",
+  "Misterbra/claude-code-exposed",
+  "MonsterKey/claude-code-leaked",
+  "Moskimla/leaked-claude-code",
+  "NguyenThucTrongNhan/clone-claudlev2",
+  "OpenPayhub/claude-pay",
+  "OtisChin/open-claude-code",
+  "PhanTranHung/claude-code",
+  "Pro-Fazendas/PROFAZENDAS---OpenClaude",
+  "Ramabhadram/Claude-Code-Leaked",
+  "Ramabhadram/Claude-Code-Leaked_2",
+  "Ramabhadram/Claude-Code-Leaked_3",
+  "Ramabhadram/Claude-Code-Leaked_4",
+  "RicardoPoleo/supposed-cc",
+  "SSPIV/anthropic-leaked-source-code",
+  "Shahfaisal0835/claude-source-code-leaks",
+  "ShoupingShan/leaked-claude-code",
+  "Shreyan1/claude-code-src-leaked",
+  "Shubhamdas27/Claude-Code-Leaked",
+  "SwiftSteed/Awesome-Claude-Code-Source-Code",
+  "Usamaliaquat123/Claude-Code-Source",
+  "VoicuTomut/leaked-claude-code",
+  "WenKai8688/claude-code-ha",
+  "ai-wormGPT/wormGPT",
+  "anilkeshwani/claude-code-leaked",
+  "aweyonhub/leaked-claude-code",
+  "bcefghj/Claude-Code-Source",
+  "brokerdelhan-beep/leaked-claude-code",
+  "chinna-naidu/leaked-claude-code",
+  "claude-ai-opus-4-6/claude-opus-4.6",
+  "codeaashu/claude-code-info",
+  "davccavalcante/claude-code-leaked",
+  "davidpuziol/claude-code",
+  "dazong9275-prog/leaked-claude-code",
+  "ddshub1/Claude-Code-Source-Code",
+  "ecosys2026/claude-source-code",
+  "enoola/claude-code_leaked-20260401",
+  "fabioeducacross/leaked-claude-code",
+  "fattail4477/claw-decode",
+  "future-labs-narviz/claude-code-leaked",
+  "hlwht/claude-code",
+  "hmkne36/claude-code-leaked-source",
+  "i24hour/Claude-code-leaked",
+  "ikandali/leaked-claude-code",
+  "imrancoder786/Leaked-claude-code",
+  "ishanvaidya01/claude-leaked",
+  "itopensourceafrica/leaked-claude-code",
+  "jeffy0729/leaked-claude-code",
+  "jiahuangzheng8-tech/claude-code-haha",
+  "jimtracy1007/claude-code-leaked",
+  "kodaneflash/leaked-original-claude-code",
+  "lalitaditya04/leaked-claude-code",
+  "lanjingling/claude-code-leaked",
+  "leaked-claude-code/leaked-claude-code",
+  "loveychen/claude-code-leaked",
+  "makeouthillx32/leaked-claude-code",
+  "minhlucvan/claude-code-wiki",
+  "my3jie/ai-edu",
+  "my3jie/civil-engineering-cloud-claude-code-source-v2.1.88",
+  "my3jie/claude-code",
+  "my3jie/claude-code2",
+  "my3jie/claw-code",
+  "my3jie/leaked-claude-code",
+  "not-agent/leaked-claude-code",
+  "nvd11/xinmi-ide-code",
+  "nvidia-nemoclaw/NemoClaw",
+  "omtripathi52/clawc",
+  "openlang-cn/claude-code-run",
+  "opensourceclaude/communityclaude",
+  "paulmarinos/leaked-claude-code",
+  "princearoraaws/leaked-claude-code",
+  "randy0120/anthropic-leaked-source-code-backup",
+  "rayzhux/claude-code-source-leak",
+  "realtime-voice-changer-app/realtime-voice-changer",
+  "saurav-shakya/Claude_Code-_Source_Code",
+  "scmishra-cse/claude-code",
+  "seanyoungw/harness-decoded",
+  "senthils007/Claude-Leaked-Code",
+  "sheiddy/claude-code-leaked",
+  "shun-fukuchi-homula/leaked-claude-code",
+  "thivankasarathchandra/leaked-claude-code",
+  "varun-ahlawat/claude-code-src-code",
+  "visheshsanghvi112/claude-code-leaked",
+  "xianzong1981/leaked-claude-code",
+  "xiaoping4220/claude-code-2188",
+  "xyhStruggler/claude-code",
+  "yanisvdc/why-claude-code-leaked",
+  "yasinldev/leaked-claude-code",
+  "yezhe18/claude-code-sourcemap",
+  "yu441374-oss/claw-code",
+  "zhouying-1218/claude-code001",
+]);
+
 
 const db = createClient(SUPABASE_URL, SUPABASE_ANON);
 let sortDirMap = { repos: -1, vt: -1 };
@@ -765,6 +908,24 @@ function buildRepoRow(f, i) {
     tdRel.textContent=assets.length ? assets.length+' asset'+(assets.length!==1?'s':'') : '–';
     tr.appendChild(tdRel);
 
+    // Listed indicator
+    const tdListed=document.createElement('td');
+    if (ALREADY_LISTED.has(f.repo_name)) {
+        const lb=document.createElement('span'); lb.className='badge-listed'; lb.textContent='LISTED';
+        tdListed.appendChild(lb);
+    }
+    tr.appendChild(tdListed);
+
+    // First Seen
+    const tdDate=document.createElement('td');
+    tdDate.className='mono'; tdDate.style.fontSize='11px';
+    if (f.first_seen) {
+        const dt=new Date(f.first_seen);
+        tdDate.textContent=dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+        tdDate.title=dt.toISOString();
+    } else { tdDate.textContent='–'; }
+    tr.appendChild(tdDate);
+
     // Actions — Dismiss only
     const tdAct=document.createElement('td'); tdAct.style.whiteSpace='nowrap';
     const dimBtn=document.createElement('button'); dimBtn.className='btn-dismiss'; dimBtn.textContent='✕';
@@ -774,7 +935,7 @@ function buildRepoRow(f, i) {
 
     // Detail row
     const trDet=document.createElement('tr'); const tdDet=document.createElement('td');
-    tdDet.colSpan=7; tdDet.style.cssText='padding:0;border:none;';
+    tdDet.colSpan=9; tdDet.style.cssText='padding:0;border:none;';
     const div=document.createElement('div'); div.className='row-details'; div.id=detailId;
     const fh=document.createElement('h4'); fh.textContent='Flags ('+reasons.length+')'; div.appendChild(fh);
     const ul=document.createElement('ul');
@@ -809,11 +970,17 @@ function renderRepos(findings) {
     const repos  = findings.filter(f=>REPO_PLATFORMS.includes(f.platform));
     if (!repos.length) {
         const tr=document.createElement('tr'); const td=document.createElement('td');
-        td.colSpan=7; const em=document.createElement('div'); em.className='empty-state';
+        td.colSpan=9; const em=document.createElement('div'); em.className='empty-state';
         const ic=document.createElement('div'); ic.className='icon'; ic.textContent='\u{1F50D}';
         const p=document.createElement('p'); p.textContent='No repository findings yet. Scans run hourly via GitHub Actions.';
         em.append(ic,p); td.appendChild(em); tr.appendChild(td); tbody.replaceChildren(tr); return;
     }
+    // Sort by first_seen descending (newest first) by default
+    repos.sort((a,b) => {
+        const da = a.first_seen ? new Date(a.first_seen).getTime() : 0;
+        const db = b.first_seen ? new Date(b.first_seen).getTime() : 0;
+        return db - da;
+    });
     const nodes=[]; repos.forEach((f,i)=>{ const[m,d]=buildRepoRow(f,i); nodes.push(m,d); });
     tbody.replaceChildren(...nodes);
 }
@@ -1030,6 +1197,36 @@ window._sortTable = function(key, col) {
     pairs.sort((a,b)=>{ const cA=a[0].children[col]?.textContent?.trim()||'',cB=b[0].children[col]?.textContent?.trim()||''; const nA=parseFloat(cA),nB=parseFloat(cB); if(!isNaN(nA)&&!isNaN(nB)) return (nA-nB)*dir; return cA.localeCompare(cB)*dir; });
     sortDirMap[key]*=-1;
     pairs.forEach(([d,dt])=>{ tbody.appendChild(d); tbody.appendChild(dt); });
+};
+
+// ── Copy lists ────────────────────────────────────────────────────────────────
+window._copyRepoList = function(btn) {
+    const rows = document.querySelectorAll('#reposBody .finding-row');
+    const names = Array.from(rows)
+        .filter(r => r.style.display !== 'none')
+        .map(r => r.querySelector('.repo-link')?.textContent || '')
+        .filter(Boolean);
+    navigator.clipboard.writeText(names.join('\n')).then(() => {
+        btn.textContent = 'Copied ' + names.length + '!';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'Copy repo list'; btn.classList.remove('copied'); }, 2000);
+    });
+};
+
+window._copyVtHashes = function(btn) {
+    const rows = document.querySelectorAll('#vtBody .finding-row');
+    const hashes = Array.from(rows)
+        .filter(r => r.style.display !== 'none')
+        .map(r => {
+            const hashSpan = r.querySelector('.hash-cell span');
+            return hashSpan?.title || '';
+        })
+        .filter(Boolean);
+    navigator.clipboard.writeText(hashes.join('\n')).then(() => {
+        btn.textContent = 'Copied ' + hashes.length + '!';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'Copy SHA256 list'; btn.classList.remove('copied'); }, 2000);
+    });
 };
 
 // ── Retry ─────────────────────────────────────────────────────────────────────
