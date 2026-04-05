@@ -597,15 +597,22 @@
             </div>
 
             <div class="dashboard-body">
-                <!-- Campaign summary card -->
+                <!-- Campaign pulse card -->
                 <div class="campaign-card">
                     <div class="campaign-card-body">
-                        <div class="campaign-card-title">TradeAI Rotating Lure Campaign</div>
-                        <div class="campaign-card-meta">Vidar v18.7 + GhostSocks SOCKS5 | 25+ brand lures | Active since Feb 2026</div>
+                        <div style="display:flex;align-items:center;gap:10px;margin-bottom:5px;">
+                            <span class="status-beacon checking" id="campStatus">Checking</span>
+                            <div class="campaign-card-title">TradeAI Rotating Lure Campaign</div>
+                        </div>
+                        <div class="campaign-card-meta">Vidar v18.7 + GhostSocks SOCKS5 + PureLogs + AMOS | 25+ brand lures | Active since Feb 2026</div>
                     </div>
                     <div class="campaign-card-stat">
                         <div class="val" id="campRepos">&ndash;</div>
-                        <div class="lbl">Repos</div>
+                        <div class="lbl">Total Repos</div>
+                    </div>
+                    <div class="campaign-card-stat">
+                        <div class="val" id="campWeekNew">&ndash;</div>
+                        <div class="lbl">New Non-Fork</div>
                     </div>
                     <div class="campaign-card-stat">
                         <div class="val" id="campToday">&ndash;</div>
@@ -615,65 +622,16 @@
                         <div class="val" id="campVt">&ndash;</div>
                         <div class="lbl">VT Hits</div>
                     </div>
-                </div>
-
-                <!-- Stats cards -->
-                <div class="stats-grid">
-                    <div class="stat-card total">
-                        <div class="label">Total Findings</div>
-                        <div class="value" id="statTotal"><span class="shimmer">00</span></div>
-                    </div>
-                    <div class="stat-card critical">
-                        <div class="label">Critical</div>
-                        <div class="value" id="statCritical"><span class="shimmer">0</span></div>
-                    </div>
-                    <div class="stat-card high">
-                        <div class="label">High</div>
-                        <div class="value" id="statHigh"><span class="shimmer">0</span></div>
-                    </div>
-                    <div class="stat-card medium">
-                        <div class="label">Medium</div>
-                        <div class="value" id="statMedium"><span class="shimmer">0</span></div>
-                    </div>
-                    <div class="stat-card platforms">
-                        <div class="label">Platforms</div>
-                        <div class="value" id="statPlatforms"><span class="shimmer">0</span></div>
+                    <div class="campaign-card-stat">
+                        <div class="val" id="campActionCount" style="color:var(--sig-high);">&ndash;</div>
+                        <div class="lbl">Need Action</div>
                     </div>
                 </div>
 
-                <!-- Severity distribution -->
+                <!-- Action queue -->
                 <div>
-                    <div class="sev-dist-label">Severity Distribution</div>
-                    <div class="sev-dist-track">
-                        <div class="sev-dist-seg critical" id="distCritical" style="width:0%"></div>
-                        <div class="sev-dist-seg high"     id="distHigh"     style="width:0%"></div>
-                        <div class="sev-dist-seg medium"   id="distMedium"   style="width:0%"></div>
-                        <div class="sev-dist-seg low"      id="distLow"      style="width:0%"></div>
-                    </div>
-                    <div class="sev-dist-legend">
-                        <div class="sev-legend-item">
-                            <div class="sev-legend-dot" style="background:var(--sig-critical)"></div>
-                            Critical <span class="sev-legend-count" id="legCritical">&ndash;</span>
-                        </div>
-                        <div class="sev-legend-item">
-                            <div class="sev-legend-dot" style="background:var(--sig-high)"></div>
-                            High <span class="sev-legend-count" id="legHigh">&ndash;</span>
-                        </div>
-                        <div class="sev-legend-item">
-                            <div class="sev-legend-dot" style="background:var(--sig-medium)"></div>
-                            Medium <span class="sev-legend-count" id="legMedium">&ndash;</span>
-                        </div>
-                        <div class="sev-legend-item">
-                            <div class="sev-legend-dot" style="background:var(--sig-low)"></div>
-                            Low <span class="sev-legend-count" id="legLow">&ndash;</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Platform coverage -->
-                <div>
-                    <div class="sev-dist-label">Platform Coverage</div>
-                    <div class="platform-bar dash-platform-bar" id="platformBar" style="padding:0;border:none;"></div>
+                    <div class="sev-dist-label">Action Queue</div>
+                    <div id="actionQueue" class="action-queue"></div>
                 </div>
 
                 <!-- 7-day timeline -->
@@ -682,9 +640,9 @@
                     <div id="timeline"></div>
                 </div>
 
-                <!-- Today's threats -->
+                <!-- New infrastructure today -->
                 <div>
-                    <div class="sev-dist-label">New Today</div>
+                    <div class="sev-dist-label">New Infrastructure — Non-Fork Repos Today</div>
                     <div id="topThreats"></div>
                 </div>
 
@@ -726,6 +684,12 @@
                 <label><input type="checkbox" id="filterDismissed" onchange="window._applyFilters()"> Show dismissed</label>
                 <label><input type="checkbox" id="filterHideForks" onchange="window._applyFilters()" checked> Hide forks</label>
                 <button class="copy-list-btn" onclick="window._copyRepoList(this)">Copy list</button>
+            </div>
+
+            <div id="forkSummary" class="fork-summary" style="display:none;">
+                <span>&#9632;</span>
+                <span id="forkSummaryText">0 fork repos hidden</span>
+                <button class="fork-summary-btn" onclick="document.getElementById('filterHideForks').checked=false; window._applyFilters();">Show forks</button>
             </div>
 
             <div class="findings-section">
@@ -941,67 +905,32 @@ async function fetchScans() {
     return data || [];
 }
 
-// ── Stats ────────────────────────────────────────────────────────────────────
-function computeStats(findings) {
-    let total = 0, critical = 0, high = 0, medium = 0, low = 0;
-    const platforms = new Set();
+// ── SM-TH detection helper ────────────────────────────────────────────────────
+// Returns true if a hash needs an SM-TH pattern request
+function isSMTHNeeded(reasons) {
+    const tmR = reasons.find(r => r.startsWith('TM Detection:'));
+    if (!tmR) return true;
+    const det = tmR.replace('TM Detection:', '').trim();
+    if (!det || det === '\u2014' || det === '--') return true;
+    if (/^(HEUR|Mal_|TROJ_GEN|HeurGen)/i.test(det)) return true;
+    const parts = det.split('.');
+    return parts.length < 4 || parts.some(p => !p.trim());
+}
+
+// ── Sidebar severity ─────────────────────────────────────────────────────────
+function updateSidebarSeverity(findings) {
+    let critical = 0, high = 0, medium = 0, low = 0;
     for (const f of findings) {
         if (f.dismissed) continue;
-        total++; platforms.add(f.platform);
         if      (f.severity === 'CRITICAL') critical++;
         else if (f.severity === 'HIGH')     high++;
         else if (f.severity === 'MEDIUM')   medium++;
         else                                low++;
     }
-    return { total, critical, high, medium, low, platforms: platforms.size };
-}
-
-function renderStats(s) {
-    $('statTotal').textContent     = s.total;
-    $('statCritical').textContent  = s.critical;
-    $('statHigh').textContent      = s.high;
-    $('statMedium').textContent    = s.medium;
-    $('statPlatforms').textContent = s.platforms + '/6';
-
-    $('sideCritical').textContent = s.critical;
-    $('sideHigh').textContent     = s.high;
-    $('sideMedium').textContent   = s.medium;
-    $('sideLow').textContent      = s.low;
-
-    const t = s.total || 1;
-    const pct = n => (n / t * 100).toFixed(1) + '%';
-    $('distCritical').style.width = pct(s.critical);
-    $('distHigh').style.width     = pct(s.high);
-    $('distMedium').style.width   = pct(s.medium);
-    $('distLow').style.width      = pct(s.low);
-
-    $('legCritical').textContent = s.critical;
-    $('legHigh').textContent     = s.high;
-    $('legMedium').textContent   = s.medium;
-    $('legLow').textContent      = s.low;
-}
-
-// ── Platform bar ─────────────────────────────────────────────────────────────
-function renderPlatformBar(findings) {
-    const counts = {};
-    for (const f of findings)
-        if (!f.dismissed && REPO_PLATFORMS.includes(f.platform))
-            counts[f.platform] = (counts[f.platform] || 0) + 1;
-
-    $('platformBar').replaceChildren(...REPO_PLATFORMS.map(p => {
-        const count = counts[p] || 0;
-        const chip = document.createElement('div');
-        chip.className = 'platform-chip';
-        const dot = document.createElement('span');
-        dot.className = count > 0 ? 'dot active' : 'dot';
-        const name = document.createElement('span');
-        name.textContent = p[0].toUpperCase() + p.slice(1);
-        const cnt = document.createElement('span');
-        cnt.className = 'count';
-        cnt.textContent = count > 0 ? count : '\u2013';
-        chip.append(dot, name, cnt);
-        return chip;
-    }));
+    $('sideCritical').textContent = critical;
+    $('sideHigh').textContent     = high;
+    $('sideMedium').textContent   = medium;
+    $('sideLow').textContent      = low;
 }
 
 // ── Nav counts ───────────────────────────────────────────────────────────────
@@ -1012,19 +941,122 @@ function updateNavCounts(findings) {
     $('navCountRepos').textContent = repoCount;
     $('navCountVt').textContent    = vtCount;
     $('reposMeta').textContent     = repoCount + ' findings';
-    $('campRepos').textContent     = repoCount;
-    $('campVt').textContent        = vtCount;
+}
 
-    const td = todayLabel();
-    const newToday = findings.filter(f => {
+// ── Campaign pulse ────────────────────────────────────────────────────────────
+function renderCampaignPulse(findings) {
+    const now  = Date.now();
+    const DAY  = 86400000;
+    const WEEK = 7 * DAY;
+
+    // Active: any non-dismissed finding created in last 48h
+    const isActive = findings.some(f => {
+        if (f.dismissed) return false;
         const d = f.repo_created_at || f.first_seen;
-        return d && new Date(d).toLocaleDateString('en-US') === td && !f.dismissed;
-    }).length;
-    $('campToday').textContent = newToday;
+        return d && (now - new Date(d).getTime()) < 2 * DAY;
+    });
 
+    const statusEl = $('campStatus');
+    if (statusEl) {
+        statusEl.textContent = isActive ? 'ACTIVE' : 'DORMANT';
+        statusEl.className = 'status-beacon ' + (isActive ? 'active' : 'dormant');
+    }
+
+    // Counts
+    const repoFindings = findings.filter(f => !f.dismissed && REPO_PLATFORMS.includes(f.platform));
+    const vtFindings   = findings.filter(f => !f.dismissed && VT_PLATFORMS.includes(f.platform) && f.platform !== 'vt_known_ioc');
+
+    if ($('campRepos')) $('campRepos').textContent = repoFindings.length;
+    if ($('campVt'))    $('campVt').textContent    = vtFindings.length;
+
+    // New non-fork repos this week
+    const newNonFork = repoFindings.filter(f => {
+        const d = f.repo_created_at || f.first_seen;
+        if (!d || (now - new Date(d).getTime()) > WEEK) return false;
+        const reasons = Array.isArray(f.reasons) ? f.reasons : [];
+        return !reasons.some(r => r.includes('fork of leaked-claude-code'))
+            && !(f.repo_name && f.repo_name.endsWith('/leaked-claude-code'));
+    });
+    if ($('campWeekNew')) $('campWeekNew').textContent = newNonFork.length;
+
+    // New non-fork repos today (for nav badge)
+    const td = todayLabel();
+    const newNonForkToday = newNonFork.filter(f => {
+        const d = f.repo_created_at || f.first_seen;
+        return d && new Date(d).toLocaleDateString('en-US') === td;
+    });
+    if ($('campToday')) $('campToday').textContent = newNonForkToday.length;
+
+    // Nav new-today badge (non-fork only)
     const navNew = $('navNewToday');
-    if (newToday > 0) { navNew.textContent = '+' + newToday; navNew.style.display = 'inline'; }
-    else { navNew.style.display = 'none'; }
+    if (navNew && newNonForkToday.length > 0) {
+        navNew.textContent = '+' + newNonForkToday.length; navNew.style.display = 'inline';
+    } else if (navNew) { navNew.style.display = 'none'; }
+
+    // Action count
+    const smthCount    = vtFindings.filter(f => isSMTHNeeded(Array.isArray(f.reasons) ? f.reasons : [])).length;
+    const unlistedCount = repoFindings.filter(f => {
+        const reasons = Array.isArray(f.reasons) ? f.reasons : [];
+        const isFork  = reasons.some(r => r.includes('fork of leaked-claude-code'))
+                     || (f.repo_name && f.repo_name.endsWith('/leaked-claude-code'));
+        return !isFork && !ALREADY_LISTED.has(f.repo_name);
+    }).length;
+    const totalActions = (smthCount > 0 ? 1 : 0) + (unlistedCount > 0 ? 1 : 0);
+    if ($('campActionCount')) {
+        $('campActionCount').textContent = totalActions || '0';
+        $('campActionCount').style.color = totalActions > 0 ? 'var(--sig-high)' : 'var(--sig-active)';
+    }
+}
+
+// ── Action queue ──────────────────────────────────────────────────────────────
+function renderActionQueue(findings) {
+    const container = $('actionQueue');
+    if (!container) return;
+
+    const vtFindings    = findings.filter(f => VT_PLATFORMS.includes(f.platform) && f.platform !== 'vt_known_ioc' && !f.dismissed);
+    const repoFindings  = findings.filter(f => REPO_PLATFORMS.includes(f.platform) && !f.dismissed);
+    const items = [];
+
+    // SM-TH needed
+    const smthHashes = vtFindings.filter(f => isSMTHNeeded(Array.isArray(f.reasons) ? f.reasons : []));
+    if (smthHashes.length) {
+        items.push({
+            type: 'warning',
+            text: smthHashes.length + ' hash' + (smthHashes.length !== 1 ? 'es' : '') + ' with no specific TM detection — SM-TH pattern request needed',
+            action: () => window._switchSection('vt'),
+        });
+    }
+
+    // Repos not in ALREADY_LISTED (non-fork)
+    const unlisted = repoFindings.filter(f => {
+        const reasons = Array.isArray(f.reasons) ? f.reasons : [];
+        const isFork  = reasons.some(r => r.includes('fork of leaked-claude-code'))
+                     || (f.repo_name && f.repo_name.endsWith('/leaked-claude-code'));
+        return !isFork && !ALREADY_LISTED.has(f.repo_name);
+    });
+    if (unlisted.length) {
+        items.push({
+            type: 'info',
+            text: unlisted.length + ' non-fork repo' + (unlisted.length !== 1 ? 's' : '') + ' not in ALREADY_LISTED — add to config.py tracking',
+            action: () => window._switchSection('repos'),
+        });
+    }
+
+    if (!items.length) {
+        const ok = document.createElement('div');
+        ok.className = 'action-item action-ok';
+        ok.textContent = '\u2713 No pending actions — all findings accounted for';
+        container.replaceChildren(ok);
+        return;
+    }
+
+    container.replaceChildren(...items.map(item => {
+        const div = document.createElement('div');
+        div.className = 'action-item action-' + item.type;
+        div.textContent = item.text;
+        if (item.action) div.onclick = item.action;
+        return div;
+    }));
 }
 
 // ── 7-Day Timeline ───────────────────────────────────────────────────────────
@@ -1062,20 +1094,24 @@ function renderTimeline(findings) {
     }));
 }
 
-// ── Top threats (TODAY only) ─────────────────────────────────────────────────
+// ── New infrastructure today (non-fork repos only) ───────────────────────────
 function renderTopThreats(findings) {
     const container = $('topThreats');
     const td = todayLabel();
     const todayFindings = findings.filter(f => {
-        if (f.dismissed) return false;
+        if (f.dismissed || !REPO_PLATFORMS.includes(f.platform)) return false;
         const d = f.repo_created_at || f.first_seen;
-        return d && new Date(d).toLocaleDateString('en-US') === td;
+        if (!d || new Date(d).toLocaleDateString('en-US') !== td) return false;
+        const reasons = Array.isArray(f.reasons) ? f.reasons : [];
+        const isFork  = reasons.some(r => r.includes('fork of leaked-claude-code'))
+                     || (f.repo_name && f.repo_name.endsWith('/leaked-claude-code'));
+        return !isFork;
     }).slice(0, 10);
 
     if (!todayFindings.length) {
         const msg = document.createElement('div');
         msg.style.cssText = 'font-family:var(--font-data);color:var(--text-ghost);font-size:11px;';
-        msg.textContent = 'No new repos created today. Check back after the next scan.';
+        msg.textContent = 'No new non-fork repos today. Fork infrastructure may still be growing — check Repositories.';
         container.replaceChildren(msg);
         return;
     }
@@ -1297,7 +1333,7 @@ function buildVtRow(f, i) {
     tr.dataset.dismissed = f.dismissed ? 'true' : 'false'; tr.dataset.score = String(f.score);
     tr.onclick = () => window._toggleDetails(detailId);
 
-    // Severity / COVERED
+    // Severity / COVERED + SM-TH badge
     const tdSev = document.createElement('td');
     if (f.platform === 'vt_known_ioc') {
         const cb = document.createElement('span'); cb.className = 'badge-covered'; cb.textContent = 'COVERED';
@@ -1305,6 +1341,10 @@ function buildVtRow(f, i) {
     } else {
         const sb = document.createElement('span'); sb.className = 'badge badge-' + (f.severity || '').toLowerCase();
         sb.textContent = f.severity || ''; tdSev.appendChild(sb);
+        if (isSMTHNeeded(reasons)) {
+            const smth = document.createElement('span'); smth.className = 'badge-smth'; smth.textContent = 'SM-TH';
+            tdSev.appendChild(smth);
+        }
     }
     tr.appendChild(tdSev);
 
@@ -1394,6 +1434,16 @@ function renderVt(findings) {
         return !coveredSha256s.has(sha);
     });
 
+    // Sort: undetected/generic (SM-TH needed) first, then by score desc
+    liveHits.sort((a, b) => {
+        const aR = Array.isArray(a.reasons) ? a.reasons : [];
+        const bR = Array.isArray(b.reasons) ? b.reasons : [];
+        const aNeeds = isSMTHNeeded(aR) ? 0 : 1;
+        const bNeeds = isSMTHNeeded(bR) ? 0 : 1;
+        if (aNeeds !== bNeeds) return aNeeds - bNeeds;
+        return b.score - a.score;
+    });
+
     if (!liveHits.length) {
         const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 6;
         const em = document.createElement('div'); em.className = 'empty-state';
@@ -1464,17 +1514,31 @@ window._applyFilters = function() {
     const hideForks = $('filterHideForks')?.checked ?? false;
     const search = ($('repoSearch')?.value || '').toLowerCase();
 
+    let hiddenForkCount = 0;
+
     document.querySelectorAll('#reposBody .finding-row').forEach(row => {
         let show = true;
         if (plat && row.dataset.platform !== plat) show = false;
         if (sev && row.dataset.severity !== sev) show = false;
         if (!showD && row.dataset.dismissed === 'true') show = false;
-        if (hideForks && row.dataset.fork === 'true') show = false;
+        if (hideForks && row.dataset.fork === 'true') { show = false; hiddenForkCount++; }
         if (search) { const text = (row.querySelector('.repo-link')?.textContent || '').toLowerCase(); if (!text.includes(search)) show = false; }
         row.style.display = show ? '' : 'none';
         const next = row.nextElementSibling;
         if (next && !next.classList.contains('finding-row')) next.style.display = show ? '' : 'none';
     });
+
+    // Fork summary bar
+    const forkBar = $('forkSummary');
+    const forkTxt = $('forkSummaryText');
+    if (forkBar && forkTxt) {
+        if (hideForks && hiddenForkCount > 0) {
+            forkTxt.textContent = hiddenForkCount + ' fork repo' + (hiddenForkCount !== 1 ? 's' : '') + ' hidden';
+            forkBar.style.display = 'flex';
+        } else {
+            forkBar.style.display = 'none';
+        }
+    }
 };
 
 window._applyVtFilters = function() {
@@ -1561,9 +1625,10 @@ async function loadDashboard() {
     const [fr, sr] = await Promise.allSettled([fetchFindings(), fetchScans()]);
     if (fr.status === 'fulfilled') {
         const f = fr.value;
-        renderStats(computeStats(f));
-        renderPlatformBar(f);
+        updateSidebarSeverity(f);
         updateNavCounts(f);
+        renderCampaignPulse(f);
+        renderActionQueue(f);
         renderTopThreats(f);
         renderTimeline(f);
         renderRepos(f);

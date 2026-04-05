@@ -906,6 +906,149 @@ a:hover {
     100% { background-position: -200% 0; }
 }
 
+/* ── Campaign Status Beacon ────────────────────────────────────────────── */
+
+.status-beacon {
+    display: inline-block;
+    font-family: var(--font-data);
+    font-size: 9px;
+    font-weight: 400;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 1px;
+    flex-shrink: 0;
+}
+
+.status-beacon.active {
+    background: rgba(16, 185, 129, 0.10);
+    color: var(--sig-active);
+    border: 1px solid rgba(16, 185, 129, 0.30);
+    animation: pulse-glow-green 3s ease-in-out infinite;
+}
+
+.status-beacon.dormant {
+    background: var(--surface-2);
+    color: var(--text-ghost);
+    border: 1px solid var(--edge);
+}
+
+.status-beacon.checking {
+    background: var(--surface-2);
+    color: var(--text-ghost);
+    border: 1px solid var(--edge);
+}
+
+@keyframes pulse-glow-green {
+    0%, 100% { border-color: rgba(16, 185, 129, 0.30); }
+    50%       { border-color: rgba(16, 185, 129, 0.60); }
+}
+
+/* ── SM-TH Badge ───────────────────────────────────────────────────────── */
+
+.badge-smth {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 1px;
+    background: var(--sig-high-dim);
+    color: var(--sig-high);
+    font-family: var(--font-ui);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    border: 1px solid rgba(249, 115, 22, 0.25);
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
+/* ── Action Queue ──────────────────────────────────────────────────────── */
+
+.action-queue {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.action-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 14px;
+    border-radius: 2px;
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 500;
+    transition: background 0.1s;
+}
+
+.action-item::before {
+    content: '';
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.action-item.action-warning {
+    background: var(--sig-high-dim);
+    color: var(--sig-high);
+    border: 1px solid rgba(249, 115, 22, 0.20);
+    cursor: pointer;
+}
+
+.action-item.action-warning::before { background: var(--sig-high); }
+.action-item.action-warning:hover { background: rgba(249, 115, 22, 0.18); }
+
+.action-item.action-info {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid rgba(99, 102, 241, 0.20);
+    cursor: pointer;
+}
+
+.action-item.action-info::before { background: var(--accent); }
+.action-item.action-info:hover { background: rgba(99, 102, 241, 0.20); }
+
+.action-item.action-ok {
+    background: rgba(16, 185, 129, 0.07);
+    color: var(--sig-active);
+    border: 1px solid rgba(16, 185, 129, 0.15);
+}
+
+.action-item.action-ok::before { background: var(--sig-active); }
+
+/* ── Fork Summary Bar ──────────────────────────────────────────────────── */
+
+.fork-summary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 20px;
+    background: var(--surface-1);
+    border-bottom: 1px solid var(--edge);
+    font-family: var(--font-data);
+    font-size: 11px;
+    color: var(--text-ghost);
+}
+
+.fork-summary-btn {
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    background: none;
+    border: 1px solid var(--edge-bright);
+    color: var(--text-ghost);
+    border-radius: 1px;
+    cursor: pointer;
+    transition: all 0.12s;
+}
+
+.fork-summary-btn:hover { border-color: var(--accent); color: var(--accent); }
+
 /* ── Scrollbar ─────────────────────────────────────────────────────────── */
 
 ::-webkit-scrollbar { width: 4px; height: 4px; }
