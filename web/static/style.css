@@ -1,59 +1,59 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    LURE MONITOR — Threat Intelligence Console
-   Classified Brief: Syne · Barlow Condensed · Share Tech Mono
-   Intelligence amber accent · Warm obsidian surfaces
+   Intelligence Platform: Epilogue · Barlow · Fragment Mono
+   Indigo accent · Cool obsidian surfaces
    ═══════════════════════════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Barlow+Condensed:wght@400;500;600;700&family=Share+Tech+Mono&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Epilogue:wght@600;700;800&family=Barlow:wght@400;500;600;700&family=Fragment+Mono&display=swap');
 
 /* ── Design tokens ──────────────────────────────────────────────────────── */
 
 :root {
-    /* Surface layers */
-    --void: #08090a;
-    --surface-0: #0d0f12;
-    --surface-1: #111318;
-    --surface-2: #161b24;
-    --surface-3: #1c2230;
-    --surface-raised: #222a38;
+    /* Surface layers — cool dark */
+    --void: #0d0d12;
+    --surface-0: #111118;
+    --surface-1: #16161e;
+    --surface-2: #1c1c28;
+    --surface-3: #222232;
+    --surface-raised: #2a2a3c;
 
     /* Borders */
-    --edge: #1c2333;
-    --edge-bright: #273042;
-    --edge-glow: rgba(240, 180, 41, 0.07);
+    --edge: #1f2030;
+    --edge-bright: #2d2f4a;
+    --edge-glow: rgba(99, 102, 241, 0.07);
 
-    /* Text hierarchy */
-    --text-max: #e8e2d4;
-    --text-primary: #c2bdb0;
-    --text-secondary: #7a7770;
-    --text-ghost: #3c3a36;
-    --text-void: #252320;
-    --text-muted: #7a7770;
+    /* Text hierarchy — cool white */
+    --text-max: #e2e4f0;
+    --text-primary: #b8bcd0;
+    --text-secondary: #6e7290;
+    --text-ghost: #363848;
+    --text-void: #222230;
+    --text-muted: #6e7290;
 
     /* Signal palette */
-    --sig-critical: #ff3055;
-    --sig-critical-dim: rgba(255, 48, 85, 0.11);
-    --sig-high: #ff7b39;
-    --sig-high-dim: rgba(255, 123, 57, 0.11);
+    --sig-critical: #f43f5e;
+    --sig-critical-dim: rgba(244, 63, 94, 0.11);
+    --sig-high: #f97316;
+    --sig-high-dim: rgba(249, 115, 22, 0.11);
     --sig-medium: #a78bfa;
     --sig-medium-dim: rgba(167, 139, 250, 0.10);
     --sig-low: #4b6a8a;
     --sig-low-dim: rgba(75, 106, 138, 0.10);
 
-    /* Intelligence amber accent */
-    --accent: #f0b429;
-    --accent-dim: rgba(240, 180, 41, 0.13);
-    --accent-glow: rgba(240, 180, 41, 0.28);
-    --accent-subtle: rgba(240, 180, 41, 0.04);
-    --sig-new: #f0b429;
+    /* Indigo accent */
+    --accent: #6366f1;
+    --accent-dim: rgba(99, 102, 241, 0.13);
+    --accent-glow: rgba(99, 102, 241, 0.28);
+    --accent-subtle: rgba(99, 102, 241, 0.04);
+    --sig-new: #6366f1;
 
     /* Operational green */
-    --sig-active: #2ed573;
+    --sig-active: #10b981;
 
     /* Typography */
-    --font-display: 'Syne', 'Helvetica Neue', sans-serif;
-    --font-ui: 'Barlow Condensed', 'Arial Narrow', sans-serif;
-    --font-data: 'Share Tech Mono', 'Courier New', monospace;
+    --font-display: 'Epilogue', 'Helvetica Neue', sans-serif;
+    --font-ui: 'Barlow', 'Helvetica Neue', sans-serif;
+    --font-data: 'Fragment Mono', 'Courier New', monospace;
 }
 
 /* ── Reset + base ──────────────────────────────────────────────────────── */
