@@ -461,7 +461,7 @@
                             <th onclick="window._sortTable('repos',3)">Stars</th>
                             <th onclick="window._sortTable('repos',4)">Releases</th>
                             <th>Listed</th>
-                            <th onclick="window._sortTable('repos',6)">First Seen</th>
+                            <th onclick="window._sortTable('repos',6)">Created</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -916,8 +916,9 @@ function buildRepoRow(f, i) {
     // First Seen
     const tdDate=document.createElement('td');
     tdDate.className='mono'; tdDate.style.fontSize='11px';
-    if (f.first_seen) {
-        const dt=new Date(f.first_seen);
+    const _dateVal = f.repo_created_at || f.first_seen;
+    if (_dateVal) {
+        const dt=new Date(_dateVal);
         tdDate.textContent=dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
         tdDate.title=dt.toISOString();
     } else { tdDate.textContent='–'; }
@@ -972,27 +973,26 @@ function renderRepos(findings) {
         const p=document.createElement('p'); p.textContent='No repository findings yet. Scans run hourly via GitHub Actions.';
         em.append(ic,p); td.appendChild(em); tr.appendChild(td); tbody.replaceChildren(tr); return;
     }
-    // Sort by first_seen descending (newest first)
+    // Sort by repo_created_at descending (newest repos first)
     repos.sort((a,b) => {
-        const da = a.first_seen ? new Date(a.first_seen).getTime() : 0;
-        const db = b.first_seen ? new Date(b.first_seen).getTime() : 0;
+        const da = (a.repo_created_at || a.first_seen) ? new Date(a.repo_created_at || a.first_seen).getTime() : 0;
+        const db = (b.repo_created_at || b.first_seen) ? new Date(b.repo_created_at || b.first_seen).getTime() : 0;
         return db - da;
     });
 
-    // Group by date — each day gets a section header row
+    // Group by repo creation date — each day gets a section header
     const nodes = [];
     let currentDateLabel = '';
     repos.forEach((f,i) => {
-        const dt = f.first_seen ? new Date(f.first_seen) : null;
+        const dt = (f.repo_created_at || f.first_seen) ? new Date(f.repo_created_at || f.first_seen) : null;
         const dateLabel = dt
             ? dt.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
             : 'Unknown Date';
 
         if (dateLabel !== currentDateLabel) {
             currentDateLabel = dateLabel;
-            // Count repos for this date
             const dateCount = repos.filter(r => {
-                const rd = r.first_seen ? new Date(r.first_seen) : null;
+                const rd = (r.repo_created_at || r.first_seen) ? new Date(r.repo_created_at || r.first_seen) : null;
                 const rl = rd ? rd.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'Unknown Date';
                 return rl === dateLabel;
             }).length;
