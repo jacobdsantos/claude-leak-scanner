@@ -1,13 +1,8 @@
 name: VT Livehunt
 
 on:
-  # Auto-trigger: fires immediately after the repo scanner finishes
-  workflow_run:
-    workflows: ["Lure Scanner"]
-    types: [completed]
 
-  # Standalone cron: also runs every 6h independently (catches notifications
-  # from files submitted to VT outside of repo scan windows)
+  # Every 6 hours — workflow_run trigger removed (was causing hourly runs)
   schedule:
     - cron: '0 */6 * * *'
 

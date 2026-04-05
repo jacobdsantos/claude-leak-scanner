@@ -32,51 +32,40 @@ async def upsert_finding(client: AsyncClient, f: ScoredFinding) -> bool:
     """Insert or update a finding. Returns True if this is a new finding."""
     now = datetime.now(timezone.utc).isoformat()
 
-    # Check existence first to decide new vs. update path
-    existing = await client.table("findings").select("id,scan_count").eq("id", f.id).execute()
+    # Check if finding already exists (for scan_count + first_seen preservation)
+    existing = await client.table("findings").select("id,scan_count,first_seen").eq("id", f.id).execute()
     is_new = len(existing.data) == 0
 
+    # ALWAYS send ALL required fields — Supabase upsert ON CONFLICT needs the
+    # full row for both INSERT and UPDATE paths. Previously the UPDATE path
+    # omitted platform/repo_name/repo_url, causing null constraint errors.
+    record = {
+        "id":               f.id,
+        "platform":         f.platform,
+        "repo_name":        f.repo_name,
+        "repo_url":         f.repo_url,
+        "description":      f.description,
+        "owner_login":      f.owner_login,
+        "owner_age_days":   f.owner_age_days,
+        "owner_pub_repos":  f.owner_pub_repos,
+        "stars":            f.stars,
+        "forks":            f.forks,
+        "score":            f.score,
+        "severity":         f.severity,
+        "reasons":          f.reasons,                                   # list → JSONB
+        "release_assets":   [a.model_dump() for a in f.release_assets],  # list → JSONB
+        "suspicious_files": f.suspicious_files,                          # list → JSONB
+        "repo_created_at":  f.repo_created_at,
+        "last_seen":        now,
+    }
+
     if is_new:
-        record = {
-            "id":               f.id,
-            "platform":         f.platform,
-            "repo_name":        f.repo_name,
-            "repo_url":         f.repo_url,
-            "description":      f.description,
-            "owner_login":      f.owner_login,
-            "owner_age_days":   f.owner_age_days,
-            "owner_pub_repos":  f.owner_pub_repos,
-            "stars":            f.stars,
-            "forks":            f.forks,
-            "score":            f.score,
-            "severity":         f.severity,
-            "reasons":          f.reasons,                                   # list → JSONB
-            "release_assets":   [a.model_dump() for a in f.release_assets],  # list → JSONB
-            "suspicious_files": f.suspicious_files,                          # list → JSONB
-            "repo_created_at":  f.repo_created_at,
-            "first_seen":       now,
-            "last_seen":        now,
-            "scan_count":       1,
-            "dismissed":        False,
-        }
+        record["first_seen"]  = now
+        record["scan_count"]  = 1
+        record["dismissed"]   = False
     else:
-        current_count = existing.data[0].get("scan_count") or 1
-        record = {
-            "id":               f.id,
-            "score":            f.score,
-            "severity":         f.severity,
-            "reasons":          f.reasons,
-            "release_assets":   [a.model_dump() for a in f.release_assets],
-            "suspicious_files": f.suspicious_files,
-            "stars":            f.stars,
-            "forks":            f.forks,
-            "description":      f.description,
-            "owner_login":      f.owner_login,
-            "owner_age_days":   f.owner_age_days,
-            "owner_pub_repos":  f.owner_pub_repos,
-            "last_seen":        now,
-            "scan_count":       current_count + 1,
-        }
+        record["first_seen"]  = existing.data[0].get("first_seen") or now
+        record["scan_count"]  = (existing.data[0].get("scan_count") or 1) + 1
 
     await client.table("findings").upsert(record, on_conflict="id").execute()
     return is_new
