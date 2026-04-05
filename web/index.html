@@ -634,6 +634,18 @@
                     <div id="actionQueue" class="action-queue"></div>
                 </div>
 
+                <!-- Payload tracker -->
+                <div>
+                    <div class="sev-dist-label">Payload Families — VT File Intelligence</div>
+                    <div id="payloadTracker"></div>
+                </div>
+
+                <!-- New owner accounts -->
+                <div>
+                    <div class="sev-dist-label">New Threat Actor Accounts — This Week</div>
+                    <div id="newAccounts"></div>
+                </div>
+
                 <!-- 7-day timeline -->
                 <div>
                     <div class="sev-dist-label">7-Day Activity</div>
@@ -993,15 +1005,31 @@ function renderCampaignPulse(findings) {
         navNew.textContent = '+' + newNonForkToday.length; navNew.style.display = 'inline';
     } else if (navNew) { navNew.style.display = 'none'; }
 
+    // Fork week delta (for fork summary bar)
+    window._forkWeekDelta = repoFindings.filter(f => {
+        const reasons = Array.isArray(f.reasons) ? f.reasons : [];
+        const isFork  = reasons.some(r => r.includes('fork of leaked-claude-code'))
+                     || (f.repo_name && f.repo_name.endsWith('/leaked-claude-code'));
+        if (!isFork) return false;
+        const d = f.first_seen || f.repo_created_at;
+        return d && (now - new Date(d).getTime()) < WEEK;
+    }).length;
+
     // Action count
-    const smthCount    = vtFindings.filter(f => isSMTHNeeded(Array.isArray(f.reasons) ? f.reasons : [])).length;
+    const smthCount = vtFindings.filter(f => isSMTHNeeded(Array.isArray(f.reasons) ? f.reasons : [])).length;
     const unlistedCount = repoFindings.filter(f => {
         const reasons = Array.isArray(f.reasons) ? f.reasons : [];
         const isFork  = reasons.some(r => r.includes('fork of leaked-claude-code'))
                      || (f.repo_name && f.repo_name.endsWith('/leaked-claude-code'));
         return !isFork && !ALREADY_LISTED.has(f.repo_name);
     }).length;
-    const totalActions = (smthCount > 0 ? 1 : 0) + (unlistedCount > 0 ? 1 : 0);
+    const newPlatformCount = REPO_PLATFORMS.filter(p => p !== 'github').filter(p => {
+        const pF = repoFindings.filter(f => f.platform === p);
+        if (!pF.length) return false;
+        const earliest = Math.min(...pF.map(f => new Date(f.first_seen || f.repo_created_at || 0).getTime()));
+        return earliest > 0 && (now - earliest) < WEEK;
+    }).length;
+    const totalActions = (smthCount > 0 ? 1 : 0) + (unlistedCount > 0 ? 1 : 0) + (newPlatformCount > 0 ? 1 : 0);
     if ($('campActionCount')) {
         $('campActionCount').textContent = totalActions || '0';
         $('campActionCount').style.color = totalActions > 0 ? 'var(--sig-high)' : 'var(--sig-active)';
@@ -1013,11 +1041,13 @@ function renderActionQueue(findings) {
     const container = $('actionQueue');
     if (!container) return;
 
-    const vtFindings    = findings.filter(f => VT_PLATFORMS.includes(f.platform) && f.platform !== 'vt_known_ioc' && !f.dismissed);
-    const repoFindings  = findings.filter(f => REPO_PLATFORMS.includes(f.platform) && !f.dismissed);
+    const now        = Date.now();
+    const WEEK       = 7 * 86400000;
+    const vtFindings   = findings.filter(f => VT_PLATFORMS.includes(f.platform) && f.platform !== 'vt_known_ioc' && !f.dismissed);
+    const repoFindings = findings.filter(f => REPO_PLATFORMS.includes(f.platform) && !f.dismissed);
     const items = [];
 
-    // SM-TH needed
+    // 1. SM-TH needed
     const smthHashes = vtFindings.filter(f => isSMTHNeeded(Array.isArray(f.reasons) ? f.reasons : []));
     if (smthHashes.length) {
         items.push({
@@ -1027,7 +1057,7 @@ function renderActionQueue(findings) {
         });
     }
 
-    // Repos not in ALREADY_LISTED (non-fork)
+    // 2. Repos not in ALREADY_LISTED (non-fork)
     const unlisted = repoFindings.filter(f => {
         const reasons = Array.isArray(f.reasons) ? f.reasons : [];
         const isFork  = reasons.some(r => r.includes('fork of leaked-claude-code'))
@@ -1039,6 +1069,21 @@ function renderActionQueue(findings) {
             type: 'info',
             text: unlisted.length + ' non-fork repo' + (unlisted.length !== 1 ? 's' : '') + ' not in ALREADY_LISTED — add to config.py tracking',
             action: () => window._switchSection('repos'),
+        });
+    }
+
+    // 3. Platform expansion — non-GitHub platform with its first finding this week
+    const newPlatforms = REPO_PLATFORMS.filter(p => p !== 'github').filter(p => {
+        const pFindings = repoFindings.filter(f => f.platform === p);
+        if (!pFindings.length) return false;
+        const earliest = Math.min(...pFindings.map(f => new Date(f.first_seen || f.repo_created_at || 0).getTime()));
+        return earliest > 0 && (now - earliest) < WEEK;
+    });
+    if (newPlatforms.length) {
+        items.push({
+            type: 'warning',
+            text: 'Campaign expanding to new platform' + (newPlatforms.length > 1 ? 's' : '') + ': ' + newPlatforms.join(', ') + ' — first findings detected this week',
+            action: () => { $('filterPlatform').value = newPlatforms[0]; window._switchSection('repos'); window._applyFilters(); },
         });
     }
 
@@ -1057,6 +1102,175 @@ function renderActionQueue(findings) {
         if (item.action) div.onclick = item.action;
         return div;
     }));
+}
+
+// ── Payload tracker ───────────────────────────────────────────────────────────
+function renderPayloadTracker(findings) {
+    const container = $('payloadTracker');
+    if (!container) return;
+
+    const vtFindings = findings.filter(f => VT_PLATFORMS.includes(f.platform) && f.platform !== 'vt_known_ioc' && !f.dismissed);
+
+    // Deduplicate by SHA256
+    const byHash = new Map();
+    vtFindings.forEach(f => {
+        const sha = Array.isArray(f.suspicious_files) ? f.suspicious_files[0] : '';
+        if (!sha || byHash.has(sha)) return;
+        byHash.set(sha, f);
+    });
+
+    if (!byHash.size) {
+        const msg = document.createElement('div');
+        msg.style.cssText = 'font-family:var(--font-data);color:var(--text-ghost);font-size:11px;';
+        msg.textContent = 'No VT file findings yet.';
+        container.replaceChildren(msg);
+        return;
+    }
+
+    // Sort: undetected → generic → specific, then by score
+    const entries = Array.from(byHash.values()).sort((a, b) => {
+        const aR = Array.isArray(a.reasons) ? a.reasons : [];
+        const bR = Array.isArray(b.reasons) ? b.reasons : [];
+        const tier = f => {
+            const tmR = f.find(r => r.startsWith('TM Detection:'));
+            if (!tmR) return 0;
+            const det = tmR.replace('TM Detection:', '').trim();
+            if (!det || det === '\u2014') return 0;
+            if (/^(HEUR|Mal_|TROJ_GEN)/i.test(det)) return 1;
+            return det.split('.').length >= 4 ? 2 : 1;
+        };
+        const ta = tier(aR), tb = tier(bR);
+        if (ta !== tb) return ta - tb;
+        return b.score - a.score;
+    });
+
+    const table = document.createElement('table');
+    table.className = 'payload-tracker';
+
+    const thead = document.createElement('thead');
+    const hrow  = document.createElement('tr');
+    ['Status', 'Filename', 'TM Detection', 'First Seen', 'SHA256'].forEach(h => {
+        const th = document.createElement('th'); th.textContent = h; hrow.appendChild(th);
+    });
+    thead.appendChild(hrow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    entries.forEach(f => {
+        const sha     = Array.isArray(f.suspicious_files) ? f.suspicious_files[0] : '';
+        const reasons = Array.isArray(f.reasons) ? f.reasons : [];
+        const tmR     = reasons.find(r => r.startsWith('TM Detection:'));
+        const tmDet   = tmR ? tmR.replace('TM Detection:', '').trim() : null;
+        const smth    = isSMTHNeeded(reasons);
+
+        // Detection tier
+        let tier = 'undetected', tierLabel = 'UNDETECTED';
+        if (tmDet && tmDet !== '\u2014') {
+            if (/^(HEUR|Mal_|TROJ_GEN)/i.test(tmDet)) { tier = 'generic'; tierLabel = 'GENERIC'; }
+            else if (tmDet.split('.').length >= 4)      { tier = 'specific'; tierLabel = 'SPECIFIC'; }
+            else                                         { tier = 'generic'; tierLabel = 'GENERIC'; }
+        }
+
+        const row = document.createElement('tr');
+
+        // Status
+        const tdSt = document.createElement('td');
+        const stBadge = document.createElement('span');
+        stBadge.className = 'badge-det ' + tier; stBadge.textContent = tierLabel;
+        tdSt.appendChild(stBadge); row.appendChild(tdSt);
+
+        // Filename
+        const tdN = document.createElement('td');
+        const lnk = document.createElement('a');
+        lnk.href = f.repo_url || '#'; lnk.target = '_blank'; lnk.className = 'repo-link';
+        lnk.textContent = f.repo_name || (sha ? sha.slice(0, 12) + '\u2026' : '\u2013');
+        lnk.onclick = e => e.stopPropagation(); tdN.appendChild(lnk); row.appendChild(tdN);
+
+        // TM Detection
+        const tdDt = document.createElement('td'); tdDt.className = 'mono';
+        tdDt.style.color = tier === 'undetected' ? 'var(--text-ghost)' : tier === 'generic' ? 'var(--sig-medium)' : 'var(--sig-active)';
+        tdDt.textContent = tmDet || '\u2014'; row.appendChild(tdDt);
+
+        // First Seen
+        const tdFs = document.createElement('td'); tdFs.className = 'mono';
+        const fsR = reasons.find(r => r.startsWith('First submitted'));
+        if (fsR) { tdFs.textContent = fsR.replace('First submitted to VT: ', ''); }
+        else if (f.repo_created_at) { tdFs.textContent = new Date(f.repo_created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+        else { tdFs.textContent = '\u2014'; }
+        row.appendChild(tdFs);
+
+        // SHA256 (truncated + copy)
+        const tdH = document.createElement('td');
+        if (sha) {
+            const wrap = document.createElement('div'); wrap.className = 'hash-cell';
+            const hs = document.createElement('span'); hs.textContent = sha.slice(0, 8) + '\u2026' + sha.slice(-4); hs.title = sha;
+            const cp = document.createElement('button'); cp.className = 'copy-btn'; cp.textContent = 'copy';
+            cp.onclick = () => window._copyHash(sha, cp);
+            wrap.append(hs, cp); tdH.appendChild(wrap);
+        } else { tdH.textContent = '\u2013'; }
+        row.appendChild(tdH);
+
+        tbody.appendChild(row);
+    });
+
+    table.appendChild(tbody);
+    container.replaceChildren(table);
+}
+
+// ── New owner accounts (this week) ────────────────────────────────────────────
+function renderNewAccounts(findings) {
+    const container = $('newAccounts');
+    if (!container) return;
+
+    const WEEK = 7 * 86400000;
+    const now  = Date.now();
+
+    // Group repo findings by owner_login
+    const repoFindings = findings.filter(f => !f.dismissed && REPO_PLATFORMS.includes(f.platform) && f.owner_login);
+    const byOwner = new Map();
+    repoFindings.forEach(f => {
+        if (!byOwner.has(f.owner_login)) byOwner.set(f.owner_login, []);
+        byOwner.get(f.owner_login).push(f);
+    });
+
+    // New owner = earliest finding across all their repos is within 7 days
+    const newOwners = [];
+    byOwner.forEach((ownerFindings, login) => {
+        const earliest = Math.min(...ownerFindings.map(f => new Date(f.first_seen || f.repo_created_at || 0).getTime()));
+        if (earliest > 0 && (now - earliest) < WEEK) {
+            newOwners.push({ login, count: ownerFindings.length, firstSeen: new Date(earliest) });
+        }
+    });
+
+    if (!newOwners.length) {
+        const msg = document.createElement('div');
+        msg.style.cssText = 'font-family:var(--font-data);color:var(--text-ghost);font-size:11px;';
+        msg.textContent = 'No new threat actor accounts detected this week.';
+        container.replaceChildren(msg);
+        return;
+    }
+
+    newOwners.sort((a, b) => b.count - a.count);
+
+    const ul = document.createElement('ul'); ul.className = 'new-accounts-list';
+    newOwners.slice(0, 10).forEach(owner => {
+        const li = document.createElement('li'); li.className = 'new-account-item';
+
+        const link = document.createElement('a');
+        link.href = 'https://github.com/' + owner.login; link.target = '_blank';
+        link.className = 'repo-link'; link.textContent = owner.login;
+
+        const repos = document.createElement('span'); repos.className = 'account-repos';
+        repos.textContent = owner.count + ' repo' + (owner.count !== 1 ? 's' : '');
+
+        const since = document.createElement('span'); since.className = 'account-since';
+        since.textContent = 'first seen ' + owner.firstSeen.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+        li.append(link, repos, since);
+        ul.appendChild(li);
+    });
+
+    container.replaceChildren(ul);
 }
 
 // ── 7-Day Timeline ───────────────────────────────────────────────────────────
@@ -1533,7 +1747,9 @@ window._applyFilters = function() {
     const forkTxt = $('forkSummaryText');
     if (forkBar && forkTxt) {
         if (hideForks && hiddenForkCount > 0) {
-            forkTxt.textContent = hiddenForkCount + ' fork repo' + (hiddenForkCount !== 1 ? 's' : '') + ' hidden';
+            const delta = window._forkWeekDelta || 0;
+            forkTxt.textContent = hiddenForkCount + ' fork repo' + (hiddenForkCount !== 1 ? 's' : '') + ' hidden'
+                + (delta > 0 ? ' (+' + delta + ' this week)' : '');
             forkBar.style.display = 'flex';
         } else {
             forkBar.style.display = 'none';
@@ -1629,6 +1845,8 @@ async function loadDashboard() {
         updateNavCounts(f);
         renderCampaignPulse(f);
         renderActionQueue(f);
+        renderPayloadTracker(f);
+        renderNewAccounts(f);
         renderTopThreats(f);
         renderTimeline(f);
         renderRepos(f);

@@ -1018,6 +1018,97 @@ a:hover {
 
 .action-item.action-ok::before { background: var(--sig-active); }
 
+/* ── Detection Status Badges (payload tracker) ─────────────────────────── */
+
+.badge-det {
+    font-family: var(--font-ui);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 1px;
+    display: inline-block;
+}
+
+.badge-det.undetected {
+    background: var(--sig-critical-dim);
+    color: var(--sig-critical);
+    border: 1px solid rgba(244, 63, 94, 0.20);
+}
+
+.badge-det.generic {
+    background: var(--sig-medium-dim);
+    color: var(--sig-medium);
+    border: 1px solid rgba(167, 139, 250, 0.20);
+}
+
+.badge-det.specific {
+    background: rgba(16, 185, 129, 0.08);
+    color: var(--sig-active);
+    border: 1px solid rgba(16, 185, 129, 0.20);
+}
+
+/* ── Payload Tracker Table ─────────────────────────────────────────────── */
+
+.payload-tracker {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.payload-tracker th {
+    font-family: var(--font-data);
+    text-align: left;
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--edge-bright);
+    color: var(--text-ghost);
+    font-size: 9px;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    background: var(--surface-1);
+    white-space: nowrap;
+}
+
+.payload-tracker td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--edge);
+    vertical-align: middle;
+    font-size: 12px;
+}
+
+.payload-tracker tr:hover td { background: var(--surface-2); }
+
+/* ── New Accounts List ─────────────────────────────────────────────────── */
+
+.new-accounts-list { list-style: none; }
+
+.new-account-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--edge);
+}
+
+.new-account-item:last-child { border-bottom: none; }
+
+.account-repos {
+    font-family: var(--font-data);
+    font-size: 11px;
+    color: var(--text-ghost);
+    background: var(--surface-2);
+    padding: 1px 8px;
+    border-radius: 10px;
+}
+
+.account-since {
+    font-family: var(--font-data);
+    font-size: 10px;
+    color: var(--text-void);
+    margin-left: auto;
+}
+
 /* ── Fork Summary Bar ──────────────────────────────────────────────────── */
 
 .fork-summary {
