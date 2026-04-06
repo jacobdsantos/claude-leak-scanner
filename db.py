@@ -33,7 +33,7 @@ async def upsert_finding(client: AsyncClient, f: ScoredFinding) -> bool:
     now = datetime.now(timezone.utc).isoformat()
 
     # Check if finding already exists (for scan_count + first_seen preservation)
-    existing = await client.table("findings").select("id,scan_count,first_seen").eq("id", f.id).execute()
+    existing = await client.table("findings").select("id,scan_count,first_seen,dismissed").eq("id", f.id).execute()
     is_new = len(existing.data) == 0
 
     # ALWAYS send ALL required fields — Supabase upsert ON CONFLICT needs the
