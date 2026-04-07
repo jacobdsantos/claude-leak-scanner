@@ -623,91 +623,70 @@ window._switchSection = function(section) {
     if (section === 'forks') loadForkIntel();
 };
 
-// ── Fork distribution intel (live GitHub API, no auth required) ───────────────
-const _INTEL_REPO      = 'leaked-claude-code/leaked-claude-code';
-const _INTEL_CACHE_KEY = 'lm_fork_intel_v2';
-const _INTEL_TTL       = 3600000; // 1 hour
+// ── Fork distribution intel (embedded baseline + lightweight live check) ──────
+// Baseline: 831 stars collected 2026-04-07 via full GitHub stargazer pagination.
+// On each load, 1 API call checks current stargazers_count. If it grew,
+// today's date is appended with the new total. No re-pagination needed.
+const _INTEL_REPO = 'leaked-claude-code/leaked-claude-code';
 
-function _getCachedIntel() {
-    try {
-        const raw = localStorage.getItem(_INTEL_CACHE_KEY);
-        if (!raw) return null;
-        const { data, ts } = JSON.parse(raw);
-        return (Date.now() - ts < _INTEL_TTL) ? data : null;
-    } catch { return null; }
-}
+const _STAR_BASELINE = [
+    {date:"2026-03-31",total:137},{date:"2026-04-01",total:454},{date:"2026-04-02",total:602},
+    {date:"2026-04-03",total:700},{date:"2026-04-04",total:757},{date:"2026-04-05",total:803},
+    {date:"2026-04-06",total:825},{date:"2026-04-07",total:831},
+];
 
-function _setCachedIntel(data) {
-    try { localStorage.setItem(_INTEL_CACHE_KEY, JSON.stringify({ data, ts: Date.now() })); } catch {}
-}
-
-function _makeLoadingEl(msg) {
-    const s = document.createElement('span');
-    s.style.cssText = 'font-family:var(--font-data);font-size:10px;color:var(--text-ghost);';
-    s.textContent = msg;
-    return s;
-}
-
-async function _fetchStarHistory(repo) {
-    const dates = [];
-    for (let page = 1; page <= 20; page++) {
-        try {
-            const r = await fetch(
-                `https://api.github.com/repos/${repo}/stargazers?per_page=100&page=${page}`,
-                { headers: { Accept: 'application/vnd.github.v3.star+json' } }
-            );
-            if (!r.ok) break;
-            const items = await r.json();
-            if (!items.length) break;
-            for (const item of items) if (item.starred_at) dates.push(item.starred_at.slice(0, 10));
-            if (items.length < 100) break;
-        } catch { break; }
-    }
-    if (!dates.length) return [];
-    const counts = {};
-    for (const d of dates) counts[d] = (counts[d] || 0) + 1;
-    let cumulative = 0;
-    return Object.keys(counts).sort().map(date => {
-        cumulative += counts[date]; return { date, total: cumulative };
-    });
-}
-
-async function _fetchAllReleases(repo) {
-    try {
-        const r = await fetch(
-            `https://api.github.com/repos/${repo}/releases?per_page=100`,
-            { headers: { Accept: 'application/vnd.github+json' } }
-        );
-        return r.ok ? await r.json() : [];
-    } catch { return []; }
-}
+const _RELEASE_FALLBACK = [{
+    tag_name: "leaked-claude-code",
+    name: "Claude Code \u2014 Leaked Source (2026-03-31)",
+    published_at: "2026-03-31T12:54:36Z",
+    assets: [{
+        name: "Claude_code_x64.7z", size: 108770935, download_count: 450,
+        created_at: "2026-04-04T20:38:27Z",
+    }],
+}];
 
 async function loadForkIntel() {
     const starC    = $('starChartContainer');
     const releaseC = $('releaseHistoryContainer');
     if (!starC || !releaseC) return;
 
-    const cached = _getCachedIntel();
-    if (cached) {
-        _renderStarChart(cached.starHistory, starC);
-        _renderReleaseHistory(cached.releases, releaseC);
-        return;
+    // Render baseline immediately — chart appears instantly
+    _renderStarChart(_STAR_BASELINE, starC);
+    _renderReleaseHistory(_RELEASE_FALLBACK, releaseC);
+
+    // 1 lightweight API call: repo metadata gives stargazers_count + we get releases
+    try {
+        const [repoResp, relResp] = await Promise.all([
+            fetch(`https://api.github.com/repos/${_INTEL_REPO}`, { headers: { Accept: 'application/vnd.github+json' } }),
+            fetch(`https://api.github.com/repos/${_INTEL_REPO}/releases?per_page=5`, { headers: { Accept: 'application/vnd.github+json' } }),
+        ]);
+
+        // Star count: compare live vs baseline, append today if grew
+        if (repoResp.ok) {
+            const repo = await repoResp.json();
+            const liveStars = repo.stargazers_count || 0;
+            const lastKnown = _STAR_BASELINE[_STAR_BASELINE.length - 1];
+            if (liveStars > lastKnown.total) {
+                const today = new Date().toISOString().slice(0, 10);
+                const history = [..._STAR_BASELINE];
+                // If today is already the last date, update it; otherwise append
+                if (history[history.length - 1].date === today) {
+                    history[history.length - 1] = { date: today, total: liveStars };
+                } else {
+                    history.push({ date: today, total: liveStars });
+                }
+                _renderStarChart(history, starC);
+            }
+        }
+
+        // Releases: use live data for current download count
+        if (relResp.ok) {
+            const releases = await relResp.json();
+            if (releases.length) _renderReleaseHistory(releases, releaseC);
+        }
+    } catch {
+        // Baseline already rendered — silently stay with embedded data
     }
-
-    starC.replaceChildren(_makeLoadingEl('Fetching star history from GitHub API...'));
-    releaseC.replaceChildren(_makeLoadingEl('Fetching releases...'));
-
-    const [starHistory, releases] = await Promise.all([
-        _fetchStarHistory(_INTEL_REPO),
-        _fetchAllReleases(_INTEL_REPO),
-    ]);
-
-    // Only cache if we got real data — don't cache rate-limited empty responses
-    if (starHistory.length > 0 || releases.length > 0) {
-        _setCachedIntel({ starHistory, releases });
-    }
-    _renderStarChart(starHistory, starC);
-    _renderReleaseHistory(releases, releaseC);
 }
 
 function _renderStarChart(history, container) {
