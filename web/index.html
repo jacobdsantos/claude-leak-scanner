@@ -585,6 +585,7 @@ const ALREADY_LISTED = new Set([
 // ── Supabase client ──────────────────────────────────────────────────────────
 const db = createClient(SUPABASE_URL, SUPABASE_ANON);
 let sortDirMap = { repos: -1, vt: -1, forks: -1 };
+let _allFindings = []; // shared reference for cross-function access
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -632,18 +633,23 @@ const _INTEL_REPO = 'leaked-claude-code/leaked-claude-code';
 const _STAR_BASELINE = [
     {date:"2026-03-31",total:137},{date:"2026-04-01",total:454},{date:"2026-04-02",total:602},
     {date:"2026-04-03",total:700},{date:"2026-04-04",total:757},{date:"2026-04-05",total:803},
-    {date:"2026-04-06",total:825},{date:"2026-04-07",total:831},
+    {date:"2026-04-06",total:825},{date:"2026-04-07",total:837},
 ];
 
-const _RELEASE_FALLBACK = [{
-    tag_name: "leaked-claude-code",
-    name: "Claude Code \u2014 Leaked Source (2026-03-31)",
-    published_at: "2026-03-31T12:54:36Z",
-    assets: [{
-        name: "Claude_code_x64.7z", size: 108770935, download_count: 450,
-        created_at: "2026-04-04T20:38:27Z",
-    }],
-}];
+function _buildReleaseFallback() {
+    // Pull download count from Supabase findings (already loaded) instead of hardcoding
+    const orig = _allFindings.find(f => f.repo_name === 'leaked-claude-code/leaked-claude-code');
+    const dlCount = orig ? findingDownloads(orig) : 0;
+    return [{
+        tag_name: "leaked-claude-code",
+        name: "Claude Code \u2014 Leaked Source (2026-03-31)",
+        published_at: "2026-03-31T12:54:36Z",
+        assets: [{
+            name: "Claude_code_x64.7z", size: 108770935, download_count: dlCount,
+            created_at: "2026-04-04T20:38:27Z",
+        }],
+    }];
+}
 
 async function loadForkIntel() {
     const starC    = $('starChartContainer');
@@ -652,9 +658,9 @@ async function loadForkIntel() {
 
     // Render baseline immediately — chart appears instantly
     _renderStarChart(_STAR_BASELINE, starC);
-    _renderReleaseHistory(_RELEASE_FALLBACK, releaseC);
+    _renderReleaseHistory(_buildReleaseFallback(), releaseC);
 
-    // 1 lightweight API call: repo metadata gives stargazers_count + we get releases
+    // 2 lightweight API calls: repo metadata (stargazers_count) + releases (download count)
     try {
         const [repoResp, relResp] = await Promise.all([
             fetch(`https://api.github.com/repos/${_INTEL_REPO}`, { headers: { Accept: 'application/vnd.github+json' } }),
@@ -669,7 +675,6 @@ async function loadForkIntel() {
             if (liveStars > lastKnown.total) {
                 const today = new Date().toISOString().slice(0, 10);
                 const history = [..._STAR_BASELINE];
-                // If today is already the last date, update it; otherwise append
                 if (history[history.length - 1].date === today) {
                     history[history.length - 1] = { date: today, total: liveStars };
                 } else {
@@ -685,7 +690,7 @@ async function loadForkIntel() {
             if (releases.length) _renderReleaseHistory(releases, releaseC);
         }
     } catch {
-        // Baseline already rendered — silently stay with embedded data
+        // Baseline already rendered — silently stay with Supabase-sourced data
     }
 }
 
@@ -2031,6 +2036,7 @@ async function loadDashboard() {
     const [fr, sr] = await Promise.allSettled([fetchFindings(), fetchScans()]);
     if (fr.status === 'fulfilled') {
         const f = fr.value;
+        _allFindings = f;
         updateNavCounts(f);
         renderCampaignPulse(f);
         renderActionQueue(f);
