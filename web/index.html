@@ -404,6 +404,30 @@
                 <button class="copy-list-btn" onclick="window._copyForkList()">Copy list</button>
             </div>
 
+            <!-- ── Distribution intelligence strip ─────────────────────────── -->
+            <div style="flex-shrink:0; border-bottom:1px solid var(--edge); display:flex; height:170px; overflow:hidden;">
+
+                <!-- Left: Star history chart -->
+                <div style="flex:1.7; min-width:0; border-right:1px solid var(--edge); display:flex; flex-direction:column; padding:8px 14px;">
+                    <div style="font-family:var(--font-data); font-size:9px; text-transform:uppercase; letter-spacing:2px; color:var(--text-ghost); flex-shrink:0; margin-bottom:4px;">
+                        Star History &mdash; leaked-claude-code/leaked-claude-code
+                    </div>
+                    <div id="starChartContainer" style="flex:1; min-height:0; display:flex; align-items:center;">
+                        <span style="font-family:var(--font-data);font-size:10px;color:var(--text-ghost);">Loading&hellip;</span>
+                    </div>
+                </div>
+
+                <!-- Right: Release download history -->
+                <div style="flex:1; min-width:0; display:flex; flex-direction:column; padding:8px 14px; overflow:hidden;">
+                    <div style="font-family:var(--font-data); font-size:9px; text-transform:uppercase; letter-spacing:2px; color:var(--text-ghost); flex-shrink:0; margin-bottom:4px;">
+                        Release Downloads &mdash; All Releases
+                    </div>
+                    <div id="releaseHistoryContainer" style="flex:1; overflow-y:auto;">
+                        <span style="font-family:var(--font-data);font-size:10px;color:var(--text-ghost);">Loading&hellip;</span>
+                    </div>
+                </div>
+            </div>
+
             <!-- Payload filename tracker (compact strip) -->
             <div style="flex-shrink:0; border-bottom:1px solid var(--edge); background:var(--surface-1);">
                 <div style="padding:7px 20px 4px; font-family:var(--font-data); font-size:9px; text-transform:uppercase; letter-spacing:2px; color:var(--text-ghost);">Payload Filenames — Downloads by Asset</div>
@@ -596,7 +620,231 @@ window._switchSection = function(section) {
     const cap = section[0].toUpperCase() + section.slice(1);
     $('nav' + cap).classList.add('active');
     $('section' + cap).classList.add('active');
+    if (section === 'forks') loadForkIntel();
 };
+
+// ── Fork distribution intel (live GitHub API, no auth required) ───────────────
+const _INTEL_REPO      = 'leaked-claude-code/leaked-claude-code';
+const _INTEL_CACHE_KEY = 'lm_fork_intel_v2';
+const _INTEL_TTL       = 3600000; // 1 hour
+
+function _getCachedIntel() {
+    try {
+        const raw = localStorage.getItem(_INTEL_CACHE_KEY);
+        if (!raw) return null;
+        const { data, ts } = JSON.parse(raw);
+        return (Date.now() - ts < _INTEL_TTL) ? data : null;
+    } catch { return null; }
+}
+
+function _setCachedIntel(data) {
+    try { localStorage.setItem(_INTEL_CACHE_KEY, JSON.stringify({ data, ts: Date.now() })); } catch {}
+}
+
+function _makeLoadingEl(msg) {
+    const s = document.createElement('span');
+    s.style.cssText = 'font-family:var(--font-data);font-size:10px;color:var(--text-ghost);';
+    s.textContent = msg;
+    return s;
+}
+
+async function _fetchStarHistory(repo) {
+    const dates = [];
+    for (let page = 1; page <= 20; page++) {
+        try {
+            const r = await fetch(
+                `https://api.github.com/repos/${repo}/stargazers?per_page=100&page=${page}`,
+                { headers: { Accept: 'application/vnd.github.v3.star+json' } }
+            );
+            if (!r.ok) break;
+            const items = await r.json();
+            if (!items.length) break;
+            for (const item of items) if (item.starred_at) dates.push(item.starred_at.slice(0, 10));
+            if (items.length < 100) break;
+        } catch { break; }
+    }
+    if (!dates.length) return [];
+    const counts = {};
+    for (const d of dates) counts[d] = (counts[d] || 0) + 1;
+    let cumulative = 0;
+    return Object.keys(counts).sort().map(date => {
+        cumulative += counts[date]; return { date, total: cumulative };
+    });
+}
+
+async function _fetchAllReleases(repo) {
+    try {
+        const r = await fetch(
+            `https://api.github.com/repos/${repo}/releases?per_page=100`,
+            { headers: { Accept: 'application/vnd.github+json' } }
+        );
+        return r.ok ? await r.json() : [];
+    } catch { return []; }
+}
+
+async function loadForkIntel() {
+    const starC    = $('starChartContainer');
+    const releaseC = $('releaseHistoryContainer');
+    if (!starC || !releaseC) return;
+
+    const cached = _getCachedIntel();
+    if (cached) {
+        _renderStarChart(cached.starHistory, starC);
+        _renderReleaseHistory(cached.releases, releaseC);
+        return;
+    }
+
+    starC.replaceChildren(_makeLoadingEl('Fetching star history from GitHub API...'));
+    releaseC.replaceChildren(_makeLoadingEl('Fetching releases...'));
+
+    const [starHistory, releases] = await Promise.all([
+        _fetchStarHistory(_INTEL_REPO),
+        _fetchAllReleases(_INTEL_REPO),
+    ]);
+
+    _setCachedIntel({ starHistory, releases });
+    _renderStarChart(starHistory, starC);
+    _renderReleaseHistory(releases, releaseC);
+}
+
+function _renderStarChart(history, container) {
+    if (!history.length) {
+        const warn = document.createElement('span');
+        warn.style.cssText = 'font-family:var(--font-data);font-size:10px;color:var(--sig-high);';
+        warn.textContent = 'GitHub rate limited (60 req/hr unauthenticated). Reloads from cache for 1hr.';
+        container.replaceChildren(warn);
+        return;
+    }
+
+    const W = 460, H = 120, pL = 34, pR = 8, pT = 10, pB = 18;
+    const cW = W - pL - pR, cH = H - pT - pB;
+    const maxV = history[history.length - 1].total || 1;
+    const t0 = new Date(history[0].date).getTime();
+    const t1 = new Date(history[history.length - 1].date).getTime();
+    const tRange = (t1 - t0) || 1;
+
+    const tx = d => pL + ((new Date(d).getTime() - t0) / tRange) * cW;
+    const ty = v => pT + cH - (v / maxV) * cH;
+    const ns = 'http://www.w3.org/2000/svg';
+
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', H);
+
+    const mk = (tag, attrs) => {
+        const el = document.createElementNS(ns, tag);
+        Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+        return el;
+    };
+    const txt = (tag, attrs, content) => {
+        const el = mk(tag, attrs);
+        el.textContent = content;
+        return el;
+    };
+
+    // Y gridlines + labels
+    [0, 0.25, 0.5, 0.75, 1].forEach(pct => {
+        const y = ty(maxV * pct);
+        svg.appendChild(mk('line', { x1: pL, y1: y, x2: W - pR, y2: y, stroke: 'rgba(255,255,255,0.05)', 'stroke-width': 1 }));
+        svg.appendChild(txt('text', { x: pL - 3, y: y + 3.5, 'text-anchor': 'end', 'font-size': 8, 'font-family': 'Fragment Mono, monospace', fill: 'rgba(255,255,255,0.22)' }, Math.round(maxV * pct)));
+    });
+
+    // Apr 4 annotation — new release upload
+    const APR4 = '2026-04-04';
+    if (APR4 >= history[0].date && APR4 <= history[history.length - 1].date) {
+        const ax = tx(APR4);
+        svg.appendChild(mk('line', { x1: ax, y1: pT, x2: ax, y2: pT + cH, stroke: 'var(--sig-critical)', 'stroke-width': 1, 'stroke-dasharray': '3,3' }));
+        svg.appendChild(txt('text', { x: ax + 3, y: pT + 9, 'font-size': 7, 'font-family': 'Fragment Mono, monospace', fill: 'var(--sig-critical)' }, 'New release Apr 4'));
+    }
+
+    // X axis date labels
+    [0, 0.33, 0.66, 1].forEach(pct => {
+        const idx = Math.min(Math.floor(pct * (history.length - 1)), history.length - 1);
+        const x = tx(history[idx].date);
+        const dt = new Date(history[idx].date);
+        svg.appendChild(txt('text', { x, y: H - 3, 'text-anchor': 'middle', 'font-size': 7.5, 'font-family': 'Fragment Mono, monospace', fill: 'rgba(255,255,255,0.28)' },
+            dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        ));
+    });
+
+    // Area fill
+    const areaPts = [`${pL},${pT + cH}`, ...history.map(p => `${tx(p.date)},${ty(p.total)}`), `${tx(history[history.length - 1].date)},${pT + cH}`].join(' ');
+    svg.appendChild(mk('polygon', { points: areaPts, fill: 'rgba(99,102,241,0.13)' }));
+
+    // Line
+    svg.appendChild(mk('polyline', { points: history.map(p => `${tx(p.date)},${ty(p.total)}`).join(' '), fill: 'none', stroke: 'var(--accent)', 'stroke-width': 1.5, 'stroke-linejoin': 'round' }));
+
+    // End dot + total label
+    const last = history[history.length - 1];
+    svg.appendChild(mk('circle', { cx: tx(last.date), cy: ty(last.total), r: 3, fill: 'var(--accent)' }));
+    svg.appendChild(txt('text', { x: W - pR, y: pT + 9, 'text-anchor': 'end', 'font-size': 11, 'font-family': 'Fragment Mono, monospace', fill: 'var(--accent)', 'font-weight': 'bold' }, '\u2605 ' + last.total));
+
+    container.replaceChildren(svg);
+}
+
+function _renderReleaseHistory(releases, container) {
+    if (!releases.length) {
+        const msg = document.createElement('span');
+        msg.style.cssText = 'font-family:var(--font-data);font-size:10px;color:var(--text-ghost);';
+        msg.textContent = 'No releases found — repo may have been taken down.';
+        container.replaceChildren(msg);
+        return;
+    }
+
+    const BINARY_EXTS = new Set(['7z', 'exe', 'zip', 'msi', 'rar']);
+    const wrap = document.createElement('div');
+    wrap.style.fontFamily = 'var(--font-data)';
+    let grandTotal = 0;
+
+    releases.forEach(release => {
+        const assets = (release.assets || []).filter(a =>
+            BINARY_EXTS.has(a.name.split('.').pop().toLowerCase())
+        );
+
+        const block = document.createElement('div');
+        block.style.marginBottom = '8px';
+
+        const tag = document.createElement('div');
+        tag.style.cssText = 'color:var(--text-ghost);font-size:9px;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;';
+        tag.textContent = (release.tag_name || 'no-tag') + '  \u00B7  ' +
+            (release.published_at ? new Date(release.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '?');
+        block.appendChild(tag);
+
+        if (!assets.length) {
+            const na = document.createElement('div');
+            na.style.cssText = 'color:var(--text-void);font-size:10px;';
+            na.textContent = 'No binary assets';
+            block.appendChild(na);
+        } else {
+            assets.forEach(a => {
+                const row = document.createElement('div');
+                row.style.cssText = 'display:flex;align-items:baseline;gap:8px;font-size:11px;padding:1px 0;';
+                const nm = document.createElement('span'); nm.style.cssText = 'flex:1;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'; nm.textContent = a.name; nm.title = a.name;
+                const sz = document.createElement('span'); sz.style.cssText = 'color:var(--text-ghost);white-space:nowrap;'; sz.textContent = (a.size / 1048576).toFixed(1) + ' MB';
+                const dlN = a.download_count || 0; grandTotal += dlN;
+                const dl = document.createElement('span'); dl.style.cssText = dlN > 0 ? 'color:var(--sig-critical);font-weight:700;white-space:nowrap;' : 'color:var(--text-ghost);white-space:nowrap;'; dl.textContent = dlN > 0 ? dlN.toLocaleString() + ' \u2193' : '0 \u2193';
+                row.append(nm, sz, dl); block.appendChild(row);
+            });
+        }
+        wrap.appendChild(block);
+    });
+
+    // Grand total
+    const tot = document.createElement('div');
+    tot.style.cssText = 'border-top:1px solid var(--edge);padding-top:5px;margin-top:2px;display:flex;justify-content:space-between;font-size:11px;';
+    const totLbl = document.createElement('span'); totLbl.style.color = 'var(--text-ghost)'; totLbl.textContent = 'All-release total';
+    const totVal = document.createElement('span'); totVal.style.cssText = 'color:var(--sig-critical);font-weight:700;'; totVal.textContent = grandTotal.toLocaleString() + ' downloads';
+    tot.append(totLbl, totVal); wrap.appendChild(tot);
+
+    // Note
+    const note = document.createElement('div');
+    note.style.cssText = 'margin-top:5px;font-size:9px;color:var(--text-void);line-height:1.4;';
+    note.textContent = 'Replaced or deleted assets lose their count permanently. Pre-Apr 4 total is not recoverable if the original asset was re-uploaded.';
+    wrap.appendChild(note);
+
+    container.replaceChildren(wrap);
+}
 
 // ── Error ────────────────────────────────────────────────────────────────────
 function showError(msg) { $('errorText').textContent = msg; $('errorBanner').style.display = 'block'; }
