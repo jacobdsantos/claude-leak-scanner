@@ -245,6 +245,9 @@
                 Repos <span class="nav-count" id="navCountRepos">&ndash;</span>
                 <span class="nav-new" id="navNewToday" style="display:none;"></span>
             </button>
+            <button class="nav-item" id="navForks" onclick="window._switchSection('forks')">
+                Forks <span class="nav-count" id="navCountForks">&ndash;</span>
+            </button>
             <button class="nav-item" id="navVt" onclick="window._switchSection('vt')">
                 VT Files <span class="nav-count" id="navCountVt">&ndash;</span>
             </button>
@@ -292,6 +295,10 @@
                     <div class="campaign-card-stat">
                         <div class="val" id="campVt">&ndash;</div>
                         <div class="lbl">VT Hits</div>
+                    </div>
+                    <div class="campaign-card-stat">
+                        <div class="val" id="campDownloads">&ndash;</div>
+                        <div class="lbl">Downloads</div>
                     </div>
                     <div class="campaign-card-stat">
                         <div class="val" id="campActionCount" style="color:var(--sig-high);">&ndash;</div>
@@ -389,7 +396,38 @@
             </div>
         </div>
 
-        <!-- ══ Section 3: VT Files ═══════════════════════════════════════════ -->
+        <!-- ══ Section 3: Fork Intelligence ════════════════════════════════════ -->
+        <div class="section-pane" id="sectionForks">
+            <div class="section-header">
+                <span class="section-title">Fork Intelligence</span>
+                <span class="section-meta" id="forksMeta">&ndash;</span>
+                <button class="copy-list-btn" onclick="window._copyForkList()">Copy list</button>
+            </div>
+
+            <!-- Payload filename tracker (compact strip) -->
+            <div style="flex-shrink:0; border-bottom:1px solid var(--edge); background:var(--surface-1);">
+                <div style="padding:7px 20px 4px; font-family:var(--font-data); font-size:9px; text-transform:uppercase; letter-spacing:2px; color:var(--text-ghost);">Payload Filenames — Downloads by Asset</div>
+                <div id="forkPayloads" style="padding:0;"></div>
+            </div>
+
+            <!-- Fork table -->
+            <div class="findings-section">
+                <table class="findings-table" id="forksTable">
+                    <thead>
+                        <tr>
+                            <th onclick="window._sortTable('forks',0)">Repository</th>
+                            <th onclick="window._sortTable('forks',1)">Stars <span class="sort-arrow">&#9660;</span></th>
+                            <th onclick="window._sortTable('forks',2)">Downloads <span class="sort-arrow">&#9660;</span></th>
+                            <th onclick="window._sortTable('forks',3)">Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="forksBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ══ Section 4: VT Files ═══════════════════════════════════════════ -->
         <div class="section-pane" id="sectionVt">
             <div class="section-header">
                 <span class="section-title">VT Files</span>
@@ -522,7 +560,7 @@ const ALREADY_LISTED = new Set([
 
 // ── Supabase client ──────────────────────────────────────────────────────────
 const db = createClient(SUPABASE_URL, SUPABASE_ANON);
-let sortDirMap = { repos: -1, vt: -1 };
+let sortDirMap = { repos: -1, vt: -1, forks: -1 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -538,6 +576,18 @@ function timeAgo(iso) {
 }
 
 function todayLabel() { return new Date().toLocaleDateString('en-US'); }
+
+// ── Fork helpers ──────────────────────────────────────────────────────────────
+function isForkFinding(f) {
+    const reasons = Array.isArray(f.reasons) ? f.reasons : [];
+    return reasons.some(r => r.includes('fork of leaked-claude-code'))
+        || (f.repo_name && f.repo_name.endsWith('/leaked-claude-code'));
+}
+
+function findingDownloads(f) {
+    const assets = Array.isArray(f.release_assets) ? f.release_assets : [];
+    return assets.reduce((s, a) => s + (a.download_count || 0), 0);
+}
 
 // ── Section switching ────────────────────────────────────────────────────────
 window._switchSection = function(section) {
@@ -601,10 +651,12 @@ function isSMTHNeeded(reasons) {
 function updateNavCounts(findings) {
     const repoCount = findings.filter(f => !f.dismissed && REPO_PLATFORMS.includes(f.platform)).length;
     const vtCount   = findings.filter(f => !f.dismissed && VT_PLATFORMS.includes(f.platform)).length;
+    const forkCount = findings.filter(f => !f.dismissed && REPO_PLATFORMS.includes(f.platform) && isForkFinding(f)).length;
 
-    $('navCountRepos').textContent = repoCount;
-    $('navCountVt').textContent    = vtCount;
-    $('reposMeta').textContent     = repoCount + ' findings';
+    $('navCountRepos').textContent  = repoCount;
+    $('navCountVt').textContent     = vtCount;
+    $('navCountForks').textContent  = forkCount;
+    $('reposMeta').textContent      = repoCount + ' findings';
 }
 
 // ── Campaign pulse ────────────────────────────────────────────────────────────
@@ -632,6 +684,16 @@ function renderCampaignPulse(findings) {
 
     if ($('campRepos')) $('campRepos').textContent = repoFindings.length;
     if ($('campVt'))    $('campVt').textContent    = vtFindings.length;
+
+    // Total downloads across all findings with release assets
+    const totalDl = findings.reduce((s, f) => {
+        if (f.dismissed) return s;
+        return s + findingDownloads(f);
+    }, 0);
+    if ($('campDownloads')) {
+        $('campDownloads').textContent = totalDl > 0 ? totalDl.toLocaleString() : '0';
+        $('campDownloads').style.color = totalDl > 0 ? 'var(--sig-critical)' : 'var(--text-max)';
+    }
 
     // New non-fork repos this week
     const newNonFork = repoFindings.filter(f => {
@@ -1187,6 +1249,169 @@ function renderRepos(findings) {
     window._applyFilters();
 }
 
+// ── Render forks ─────────────────────────────────────────────────────────────
+function renderForks(findings) {
+    const forkFindings = findings.filter(f =>
+        REPO_PLATFORMS.includes(f.platform) && !f.dismissed && isForkFinding(f)
+    );
+
+    // ── Payload filename tracker ───────────────────────────────────────────
+    const filenameMap = new Map();
+    forkFindings.forEach(f => {
+        (Array.isArray(f.release_assets) ? f.release_assets : []).forEach(a => {
+            if (!a.name) return;
+            if (!filenameMap.has(a.name)) filenameMap.set(a.name, { downloads: 0, repos: 0, sizeMb: a.size_mb || 0 });
+            const e = filenameMap.get(a.name);
+            e.downloads += a.download_count || 0;
+            e.repos++;
+        });
+    });
+
+    const totalDl  = forkFindings.reduce((s, f) => s + findingDownloads(f), 0);
+    const withRel  = forkFindings.filter(f => (f.release_assets || []).length > 0).length;
+    const forkMeta = $('forksMeta');
+    if (forkMeta) forkMeta.textContent = forkFindings.length + ' forks · ' + totalDl.toLocaleString() + ' total downloads · ' + withRel + ' with releases';
+
+    const payloadContainer = $('forkPayloads');
+    if (payloadContainer) {
+        if (!filenameMap.size) {
+            const msg = document.createElement('div');
+            msg.style.cssText = 'padding:8px 20px;font-family:var(--font-data);font-size:11px;color:var(--text-ghost);';
+            msg.textContent = 'No release assets found across forks.';
+            payloadContainer.replaceChildren(msg);
+        } else {
+            const tbl = document.createElement('table'); tbl.className = 'payload-tracker';
+            const thead = document.createElement('thead'); const hrow = document.createElement('tr');
+            ['Filename', 'Downloads', 'Repos', 'Avg Size'].forEach(h => {
+                const th = document.createElement('th'); th.textContent = h; hrow.appendChild(th);
+            });
+            thead.appendChild(hrow); tbl.appendChild(thead);
+            const tbody = document.createElement('tbody');
+            Array.from(filenameMap.entries())
+                .sort((a, b) => b[1].downloads - a[1].downloads)
+                .forEach(([name, data]) => {
+                    const tr = document.createElement('tr');
+                    const tdN = document.createElement('td');
+                    const code = document.createElement('code'); code.className = 'mono'; code.style.fontSize = '12px'; code.textContent = name;
+                    tdN.appendChild(code); tr.appendChild(tdN);
+                    const tdD = document.createElement('td'); tdD.className = 'mono';
+                    tdD.style.cssText = data.downloads > 0 ? 'color:var(--sig-critical);font-weight:700;' : 'color:var(--text-ghost);';
+                    tdD.textContent = data.downloads > 0 ? data.downloads.toLocaleString() + ' ↓' : '—'; tr.appendChild(tdD);
+                    const tdR = document.createElement('td'); tdR.className = 'mono'; tdR.textContent = data.repos; tr.appendChild(tdR);
+                    const tdS = document.createElement('td'); tdS.className = 'mono';
+                    tdS.textContent = data.sizeMb ? data.sizeMb.toFixed(1) + ' MB' : '—'; tr.appendChild(tdS);
+                    tbody.appendChild(tr);
+                });
+            tbl.appendChild(tbody);
+            payloadContainer.replaceChildren(tbl);
+        }
+    }
+
+    // ── Fork table ─────────────────────────────────────────────────────────
+    const tbody = $('forksBody');
+    if (!forkFindings.length) {
+        const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 5;
+        const em = document.createElement('div'); em.className = 'empty-state';
+        const ic = document.createElement('div'); ic.className = 'icon'; ic.textContent = '\u{1F374}';
+        const p = document.createElement('p'); p.textContent = 'No fork findings yet.';
+        em.append(ic, p); td.appendChild(em); tr.appendChild(td); tbody.replaceChildren(tr); return;
+    }
+
+    // Sort: downloads desc, then created desc
+    forkFindings.sort((a, b) => {
+        const dA = findingDownloads(a), dB = findingDownloads(b);
+        if (dA !== dB) return dB - dA;
+        return new Date(b.repo_created_at || b.first_seen || 0).getTime()
+             - new Date(a.repo_created_at || a.first_seen || 0).getTime();
+    });
+
+    const nodes = [];
+    forkFindings.forEach((f, i) => {
+        const assets  = Array.isArray(f.release_assets) ? f.release_assets : [];
+        const dlTotal = findingDownloads(f);
+        const detailId = 'fk-' + i;
+
+        const tr = document.createElement('tr');
+        tr.className = 'finding-row';
+        tr.dataset.severity  = f.severity || '';
+        tr.dataset.dismissed = f.dismissed ? 'true' : 'false';
+        tr.onclick = () => window._toggleDetails(detailId);
+
+        // Col 0: Repository
+        const tdR = document.createElement('td');
+        const pb = document.createElement('span'); pb.className = 'badge-platform ' + (f.platform || ''); pb.textContent = f.platform || '';
+        tdR.appendChild(pb); tdR.appendChild(document.createTextNode(' '));
+        const a = document.createElement('a'); a.href = f.repo_url || '#'; a.target = '_blank';
+        a.className = 'repo-link'; a.textContent = f.repo_name || ''; a.onclick = e => e.stopPropagation();
+        tdR.appendChild(a); tr.appendChild(tdR);
+
+        // Col 1: Stars
+        const tdSt = document.createElement('td'); tdSt.className = 'mono';
+        tdSt.textContent = f.stars != null ? '\u2605 ' + f.stars : '\u2013'; tr.appendChild(tdSt);
+
+        // Col 2: Downloads
+        const tdDl = document.createElement('td'); tdDl.className = 'mono';
+        if (dlTotal > 0) {
+            tdDl.style.cssText = 'color:var(--sig-critical);font-weight:700;';
+            tdDl.textContent = dlTotal.toLocaleString() + ' \u2193';
+        } else {
+            tdDl.style.color = 'var(--text-ghost)';
+            tdDl.textContent = assets.length ? '0' : '\u2014';
+        }
+        tr.appendChild(tdDl);
+
+        // Col 3: Created
+        const tdDate = document.createElement('td'); tdDate.className = 'mono';
+        const dv = f.repo_created_at || f.first_seen;
+        if (dv) {
+            const dt = new Date(dv);
+            tdDate.textContent = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            tdDate.title = dt.toISOString();
+        } else { tdDate.textContent = '\u2013'; }
+        tr.appendChild(tdDate);
+
+        // Col 4: Actions
+        const tdAct = document.createElement('td');
+        const bg = document.createElement('div'); bg.className = 'btn-group';
+        const ob = document.createElement('a'); ob.className = 'action-btn'; ob.href = f.repo_url || '#'; ob.target = '_blank';
+        ob.textContent = 'Open'; ob.onclick = e => e.stopPropagation();
+        const db2 = document.createElement('button'); db2.className = 'action-btn danger'; db2.textContent = 'Dismiss';
+        db2.onclick = e => { e.stopPropagation(); window._dismiss(f.id, db2); };
+        bg.append(ob, db2); tdAct.appendChild(bg); tr.appendChild(tdAct);
+
+        // Detail row: release assets
+        const trDet = document.createElement('tr');
+        const tdDet = document.createElement('td'); tdDet.colSpan = 5; tdDet.style.cssText = 'padding:0;border:none;';
+        const div = document.createElement('div'); div.className = 'row-details'; div.id = detailId;
+
+        if (assets.length) {
+            const ah = document.createElement('h4'); ah.textContent = 'Release Assets (' + assets.length + ')'; div.appendChild(ah);
+            const tbl2 = document.createElement('table'); tbl2.className = 'release-table';
+            const th2 = document.createElement('thead'); const hr2 = document.createElement('tr');
+            ['File', 'Size', 'Downloads', 'Tag'].forEach(t => { const th = document.createElement('th'); th.textContent = t; hr2.appendChild(th); });
+            th2.appendChild(hr2); tbl2.appendChild(th2);
+            const tb2 = document.createElement('tbody');
+            assets.forEach(a => {
+                const row = document.createElement('tr');
+                [a.name, (a.size_mb ?? 0) + ' MB', (a.download_count || 0).toLocaleString(), a.tag || ''].forEach((v, idx) => {
+                    const td2 = document.createElement('td'); td2.className = 'mono';
+                    if (idx === 2 && (a.download_count || 0) > 0) td2.style.cssText = 'color:var(--sig-critical);font-weight:700;';
+                    td2.textContent = v; row.appendChild(td2);
+                });
+                tb2.appendChild(row);
+            });
+            tbl2.appendChild(tb2); div.appendChild(tbl2);
+        } else {
+            const nh = document.createElement('h4'); nh.textContent = 'No Release Assets'; div.appendChild(nh);
+            const np = document.createElement('p'); np.style.cssText = 'font-family:var(--font-data);font-size:11px;color:var(--text-ghost);padding:4px 0;';
+            np.textContent = 'README likely links to the original repo\u2019s download.'; div.appendChild(np);
+        }
+        tdDet.appendChild(div); trDet.appendChild(tdDet);
+        nodes.push(tr, trDet);
+    });
+    tbody.replaceChildren(...nodes);
+}
+
 // ── Build VT row ─────────────────────────────────────────────────────────────
 function buildVtRow(f, i) {
     const detailId = 'v-' + i;
@@ -1418,7 +1643,8 @@ window._applyVtFilters = function() {
 
 // ── Sort ─────────────────────────────────────────────────────────────────────
 window._sortTable = function(key, col) {
-    const tbody = $(key === 'repos' ? 'reposBody' : 'vtBody');
+    const bodyId = key === 'repos' ? 'reposBody' : key === 'forks' ? 'forksBody' : 'vtBody';
+    const tbody = $(bodyId);
     if (!tbody) return;
     const pairs = [], rows = Array.from(tbody.children);
     for (let i = 0; i < rows.length - 1; i += 2) if (rows[i] && rows[i+1]) pairs.push([rows[i], rows[i+1]]);
@@ -1435,6 +1661,12 @@ window._sortTable = function(key, col) {
 };
 
 // ── Copy lists ───────────────────────────────────────────────────────────────
+window._copyForkList = function() {
+    const names = Array.from(document.querySelectorAll('#forksBody .finding-row'))
+        .map(r => r.querySelector('.repo-link')?.textContent || '').filter(Boolean);
+    navigator.clipboard.writeText(names.join('\n')).then(() => showToast('Copied ' + names.length + ' forks', 'success'));
+};
+
 window._copyRepoList = function() {
     const names = Array.from(document.querySelectorAll('#reposBody .finding-row'))
         .filter(r => r.style.display !== 'none')
@@ -1475,7 +1707,8 @@ document.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
     if (e.key === '1') window._switchSection('dashboard');
     if (e.key === '2') window._switchSection('repos');
-    if (e.key === '3') window._switchSection('vt');
+    if (e.key === '3') window._switchSection('forks');
+    if (e.key === '4') window._switchSection('vt');
 });
 
 // ── Retry ────────────────────────────────────────────────────────────────────
@@ -1495,6 +1728,7 @@ async function loadDashboard() {
         renderTopThreats(f);
         renderTimeline(f);
         renderRepos(f);
+        renderForks(f);
         renderVt(f);
     } else { showError('Failed to load: ' + fr.reason?.message); }
     if (sr.status === 'fulfilled') renderScans(sr.value);
