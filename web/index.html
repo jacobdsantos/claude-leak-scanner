@@ -702,7 +702,10 @@ async function loadForkIntel() {
         _fetchAllReleases(_INTEL_REPO),
     ]);
 
-    _setCachedIntel({ starHistory, releases });
+    // Only cache if we got real data — don't cache rate-limited empty responses
+    if (starHistory.length > 0 || releases.length > 0) {
+        _setCachedIntel({ starHistory, releases });
+    }
     _renderStarChart(starHistory, starC);
     _renderReleaseHistory(releases, releaseC);
 }
