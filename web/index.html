@@ -1249,6 +1249,61 @@ function renderRepos(findings) {
     window._applyFilters();
 }
 
+// ── Star history sparkline ────────────────────────────────────────────────────
+function buildSparkline(history, width, height) {
+    // history: [{date, total}, ...] sorted ascending
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', height);
+    svg.style.display = 'block';
+    svg.style.maxWidth = width + 'px';
+    svg.style.margin = '4px 0 8px';
+
+    const pts = history.length > 100
+        ? history.filter((_, i) => i % Math.ceil(history.length / 100) === 0)
+        : history;
+
+    const maxTotal = pts[pts.length - 1].total || 1;
+    const pad = 2;
+    const w = width - pad * 2;
+    const h = height - pad * 2;
+
+    const toX = i => pad + (i / (pts.length - 1)) * w;
+    const toY = v => pad + h - (v / maxTotal) * h;
+
+    // Area fill
+    const area = document.createElementNS(ns, 'polygon');
+    const areaPoints = [
+        `${toX(0)},${pad + h}`,
+        ...pts.map((p, i) => `${toX(i)},${toY(p.total)}`),
+        `${toX(pts.length - 1)},${pad + h}`,
+    ].join(' ');
+    area.setAttribute('points', areaPoints);
+    area.setAttribute('fill', 'rgba(99,102,241,0.15)');
+    svg.appendChild(area);
+
+    // Line
+    const line = document.createElementNS(ns, 'polyline');
+    line.setAttribute('points', pts.map((p, i) => `${toX(i)},${toY(p.total)}`).join(' '));
+    line.setAttribute('fill', 'none');
+    line.setAttribute('stroke', 'var(--accent)');
+    line.setAttribute('stroke-width', '1.5');
+    line.setAttribute('stroke-linejoin', 'round');
+    svg.appendChild(line);
+
+    // End dot
+    const dot = document.createElementNS(ns, 'circle');
+    dot.setAttribute('cx', toX(pts.length - 1));
+    dot.setAttribute('cy', toY(pts[pts.length - 1].total));
+    dot.setAttribute('r', '2.5');
+    dot.setAttribute('fill', 'var(--accent)');
+    svg.appendChild(dot);
+
+    return svg;
+}
+
 // ── Render forks ─────────────────────────────────────────────────────────────
 function renderForks(findings) {
     const forkFindings = findings.filter(f =>
@@ -1384,6 +1439,14 @@ function renderForks(findings) {
         const tdDet = document.createElement('td'); tdDet.colSpan = 5; tdDet.style.cssText = 'padding:0;border:none;';
         const div = document.createElement('div'); div.className = 'row-details'; div.id = detailId;
 
+        // Star history sparkline
+        const starHistory = Array.isArray(f.star_history) ? f.star_history : [];
+        if (starHistory.length >= 2) {
+            const sh = document.createElement('h4'); sh.textContent = 'Star History (\u2605' + starHistory[starHistory.length-1].total + ' total)'; div.appendChild(sh);
+            div.appendChild(buildSparkline(starHistory, 280, 36));
+        }
+
+        // Release assets
         if (assets.length) {
             const ah = document.createElement('h4'); ah.textContent = 'Release Assets (' + assets.length + ')'; div.appendChild(ah);
             const tbl2 = document.createElement('table'); tbl2.className = 'release-table';
@@ -1401,11 +1464,29 @@ function renderForks(findings) {
                 tb2.appendChild(row);
             });
             tbl2.appendChild(tb2); div.appendChild(tbl2);
-        } else {
-            const nh = document.createElement('h4'); nh.textContent = 'No Release Assets'; div.appendChild(nh);
-            const np = document.createElement('p'); np.style.cssText = 'font-family:var(--font-data);font-size:11px;color:var(--text-ghost);padding:4px 0;';
-            np.textContent = 'README likely links to the original repo\u2019s download.'; div.appendChild(np);
         }
+
+        // README download links
+        const readmeUrls = Array.isArray(f.readme_download_urls) ? f.readme_download_urls : [];
+        if (readmeUrls.length) {
+            const rh = document.createElement('h4'); rh.textContent = 'README Download Links (' + readmeUrls.length + ')'; div.appendChild(rh);
+            const rul = document.createElement('ul');
+            readmeUrls.forEach(url => {
+                const li = document.createElement('li');
+                const a2 = document.createElement('a'); a2.href = url; a2.target = '_blank';
+                a2.className = 'mono'; a2.style.fontSize = '11px';
+                a2.textContent = url.replace('https://github.com/', ''); a2.title = url;
+                li.appendChild(a2); rul.appendChild(li);
+            });
+            div.appendChild(rul);
+        }
+
+        if (!assets.length && !readmeUrls.length) {
+            const nh = document.createElement('h4'); nh.textContent = 'No Release Assets or README Links'; div.appendChild(nh);
+            const np = document.createElement('p'); np.style.cssText = 'font-family:var(--font-data);font-size:11px;color:var(--text-ghost);padding:4px 0;';
+            np.textContent = 'Fork has no releases and no download links detected in README.'; div.appendChild(np);
+        }
+
         tdDet.appendChild(div); trDet.appendChild(tdDet);
         nodes.push(tr, trDet);
     });

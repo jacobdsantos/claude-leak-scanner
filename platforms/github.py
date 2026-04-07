@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 
 from models import RepoCandidate, ReleaseAsset, OwnerInfo
@@ -233,6 +234,54 @@ class GitHubScanner(PlatformScanner):
             return [item.get("path", "") for item in tree]
         except Exception:
             return []
+
+    async def get_star_history(self, repo_id: str, max_pages: int = 10) -> list[dict]:
+        """Fetch star history as cumulative daily snapshots.
+
+        Uses the star+json media type to get timestamped stargazer events.
+        Returns [{date: "YYYY-MM-DD", total: int}, ...] one entry per day.
+
+        Rate cost: up to max_pages requests. Only call for repos with
+        meaningful star counts (gate at caller side to save API budget).
+        """
+        http = await self.client()
+        starred_dates: list[str] = []
+
+        for page in range(1, max_pages + 1):
+            try:
+                resp = await http.get(
+                    f"{_API}/repos/{repo_id}/stargazers",
+                    headers={"Accept": "application/vnd.github.v3.star+json"},
+                    params={"per_page": 100, "page": page},
+                )
+                if resp.status_code == 403:
+                    logger.warning(f"GitHub rate limited fetching star history for {repo_id}")
+                    break
+                if resp.status_code != 200:
+                    break
+                data = resp.json()
+                if not data:
+                    break
+                for item in data:
+                    starred_at = item.get("starred_at", "")
+                    if starred_at:
+                        starred_dates.append(starred_at[:10])  # YYYY-MM-DD
+                if len(data) < 100:
+                    break  # last page
+            except Exception as exc:
+                logger.debug(f"Star history fetch failed for {repo_id} page {page}: {exc}")
+                break
+
+        if not starred_dates:
+            return []
+
+        counts = Counter(starred_dates)
+        cumulative = 0
+        history: list[dict] = []
+        for date in sorted(counts):
+            cumulative += counts[date]
+            history.append({"date": date, "total": cumulative})
+        return history
 
     async def get_owner_info(self, owner_login: str) -> OwnerInfo:
         http = await self.client()

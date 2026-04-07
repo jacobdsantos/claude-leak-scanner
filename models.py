@@ -56,6 +56,8 @@ class ScoredFinding(BaseModel):
     reasons: list[str] = Field(default_factory=list)
     release_assets: list[ReleaseAsset] = Field(default_factory=list)
     suspicious_files: list[str] = Field(default_factory=list)
+    readme_download_urls: list[str] = Field(default_factory=list)
+    star_history: list[dict] = Field(default_factory=list)
     repo_created_at: Optional[str] = None
     first_seen: Optional[datetime] = None
     last_seen: Optional[datetime] = None

@@ -33,7 +33,7 @@ async def upsert_finding(client: AsyncClient, f: ScoredFinding) -> bool:
     now = datetime.now(timezone.utc).isoformat()
 
     # Check if finding already exists (for scan_count + first_seen preservation)
-    existing = await client.table("findings").select("id,scan_count,first_seen,dismissed").eq("id", f.id).execute()
+    existing = await client.table("findings").select("id,scan_count,first_seen,dismissed,star_history").eq("id", f.id).execute()
     is_new = len(existing.data) == 0
 
     # ALWAYS send ALL required fields — Supabase upsert ON CONFLICT needs the
@@ -55,19 +55,25 @@ async def upsert_finding(client: AsyncClient, f: ScoredFinding) -> bool:
         "reasons":          f.reasons,                                   # list → JSONB
         "release_assets":   [a.model_dump() for a in f.release_assets],  # list → JSONB
         "suspicious_files": f.suspicious_files,                          # list → JSONB
-        "repo_created_at":  f.repo_created_at,
-        "last_seen":        now,
+        "repo_created_at":      f.repo_created_at,
+        "last_seen":            now,
+        "readme_download_urls": f.readme_download_urls,
     }
 
     if is_new:
         record["first_seen"]  = now
         record["scan_count"]  = 1
         record["dismissed"]   = False
+        record["star_history"] = f.star_history
     else:
         record["first_seen"]  = existing.data[0].get("first_seen") or now
         record["scan_count"]  = (existing.data[0].get("scan_count") or 1) + 1
         # PRESERVE dismissed status — don't un-dismiss on rescan
         record["dismissed"]   = existing.data[0].get("dismissed", False)
+        # PRESERVE star_history — use fresh data if we fetched it, otherwise
+        # keep existing so history isn't lost for repos below the star threshold
+        existing_history = existing.data[0].get("star_history") or []
+        record["star_history"] = f.star_history if f.star_history else existing_history
 
     await client.table("findings").upsert(record, on_conflict="id").execute()
     return is_new

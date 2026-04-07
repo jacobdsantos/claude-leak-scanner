@@ -19,6 +19,19 @@ from platforms.base import PlatformScanner
 
 logger = logging.getLogger("lure-monitor.scanner")
 
+# ── README download URL extraction ────────────────────────────────────────────
+# Matches GitHub releases download URLs ending in known malware extensions.
+# Used to surface download lures embedded in fork READMEs that point back
+# to the original repo's release (or a third-party host).
+_README_DL_RE = re.compile(
+    r"https?://github\.com/[\w.\-]+/[\w.\-]+/releases/download"
+    r"/[^\s\)\]\"'<>\n]+\.(?:7z|exe|zip|msi|rar|tar\.gz|tgz)",
+    re.IGNORECASE,
+)
+
+# Minimum stars to trigger star history fetch (per-repo API cost: up to 10 calls)
+_STAR_HISTORY_MIN_STARS = 5
+
 
 # ── Scoring engine (ported from claude_lure_scanner.py) ──────────────────────
 
@@ -363,6 +376,28 @@ async def scan_platform(
             if ext in config.SUSPICIOUS_FILE_EXTENSIONS or fname in config.SUSPICIOUS_FILE_NAMES:
                 suspicious_files.append(f)
 
+        # ── README download URL extraction ────────────────────────────────────
+        # Deduplicate while preserving order (dict.fromkeys trick).
+        readme_download_urls: list[str] = list(dict.fromkeys(
+            _README_DL_RE.findall(readme)
+        )) if readme else []
+
+        # ── Star history (GitHub only, qualifying repos) ──────────────────────
+        star_history: list[dict] = []
+        if (
+            candidate.stars >= _STAR_HISTORY_MIN_STARS
+            or candidate.repo_name in config.KNOWN_MALICIOUS_REPOS
+        ) and hasattr(scanner, "get_star_history"):
+            try:
+                star_history = await scanner.get_star_history(candidate.repo_id)
+                if star_history:
+                    logger.debug(
+                        f"[{platform}] Star history for {candidate.repo_name}: "
+                        f"{len(star_history)} days, peak {star_history[-1]['total']}"
+                    )
+            except Exception as exc:
+                logger.debug(f"[{platform}] Star history failed for {candidate.repo_name}: {exc}")
+
         results.append(ScoredFinding(
             id=candidate.finding_id,
             platform=platform,
@@ -379,6 +414,8 @@ async def scan_platform(
             reasons=reasons,
             release_assets=releases,
             suspicious_files=suspicious_files,
+            readme_download_urls=readme_download_urls,
+            star_history=star_history,
             repo_created_at=candidate.repo_created_at,
         ))
 
